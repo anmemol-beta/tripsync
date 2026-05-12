@@ -1,0 +1,27 @@
+{
+  "name": "@trippo/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@trippo/agent": "workspace:*",
+    "@trippo/schema": "workspace:*",
+    "@trippo/seed": "workspace:*",
+    "hono": "^4.6.10",
+    "@hono/node-server": "^1.13.7",
+    "mongodb": "^6.10.0",
+    "zod": "^3.23.8"
+  }
+}
