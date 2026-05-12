@@ -1,0 +1,28 @@
+{
+  "name": "trippo-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Group travel planning agent. Gemini 3 + Vertex AI Agent Builder + MongoDB MCP.",
+  "license": "MIT",
+  "packageManager": "pnpm@11.1.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "test:happy-path": "vitest run test/happy-path.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "mongodb": "^6.10.0",
+    "mongodb-memory-server": "^10.1.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  },
+  "dependencies": {
+    "@trippo/agent": "workspace:*",
+    "@trippo/schema": "workspace:*",
+    "@trippo/seed": "workspace:*"
+  }
+}
