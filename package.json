@@ -1,5 +1,5 @@
 {
-  "name": "trippo-agent",
+  "name": "tripsync",
   "version": "0.1.0",
   "private": true,
   "description": "Group travel planning agent. Gemini 3 + Vertex AI Agent Builder + MongoDB MCP.",
@@ -21,8 +21,8 @@
     "vitest": "^2.1.5"
   },
   "dependencies": {
-    "@trippo/agent": "workspace:*",
-    "@trippo/schema": "workspace:*",
-    "@trippo/seed": "workspace:*"
+    "@tripsync/agent": "workspace:*",
+    "@tripsync/schema": "workspace:*",
+    "@tripsync/seed": "workspace:*"
   }
 }

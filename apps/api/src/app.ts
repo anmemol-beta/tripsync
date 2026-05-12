@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import type { Db } from "mongodb";
 import { z } from "zod";
-import { COLLECTIONS, type TripDoc } from "@trippo/schema";
+import { COLLECTIONS, type TripDoc } from "@tripsync/schema";
 import {
   appendVote,
   runTurn,
   type GeminiClient,
-} from "@trippo/agent";
+} from "@tripsync/agent";
 
 export type AppDeps = {
   db: Db;

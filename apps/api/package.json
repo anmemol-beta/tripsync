@@ -1,5 +1,5 @@
 {
-  "name": "@trippo/api",
+  "name": "@tripsync/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -16,9 +16,9 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
-    "@trippo/agent": "workspace:*",
-    "@trippo/schema": "workspace:*",
-    "@trippo/seed": "workspace:*",
+    "@tripsync/agent": "workspace:*",
+    "@tripsync/schema": "workspace:*",
+    "@tripsync/seed": "workspace:*",
     "hono": "^4.6.10",
     "@hono/node-server": "^1.13.7",
     "mongodb": "^6.10.0",

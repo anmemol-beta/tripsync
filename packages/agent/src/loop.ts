@@ -1,10 +1,10 @@
 import type { Db } from "mongodb";
-import { COLLECTIONS, type MessageDoc } from "@trippo/schema";
+import { COLLECTIONS, type MessageDoc } from "@tripsync/schema";
 import type { FunctionCall, GeminiClient, Turn } from "./gemini.js";
 import { TOOLS, type ToolContext } from "./runtime.js";
 import { TOOL_NAMES, TOOL_SCHEMAS, type ToolName } from "./tools.js";
 
-export const SYSTEM_PROMPT = `You are Trippo, an agent helping 2-5 friends plan one trip together.
+export const SYSTEM_PROMPT = `You are Tripsync, an agent helping 2-5 friends plan one trip together.
 Your memory is MongoDB. Use the listed tools to read and write trip state.
 Never decide for the group without a vote. Always append_history after state-changing tool calls.
 Reply in Korean, one short paragraph or a numbered options list.`;

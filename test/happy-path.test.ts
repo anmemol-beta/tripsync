@@ -7,9 +7,9 @@ import {
   type ProposalDoc,
   type TripDoc,
   type VoteDoc,
-} from "@trippo/schema";
-import { BOSTON_CREW_TRIP_ID, seedBostonCrew } from "@trippo/seed";
-import { MockGeminiClient, runTurn, appendVote } from "@trippo/agent";
+} from "@tripsync/schema";
+import { BOSTON_CREW_TRIP_ID, seedBostonCrew } from "@tripsync/seed";
+import { MockGeminiClient, runTurn, appendVote } from "@tripsync/agent";
 
 let mongod: MongoMemoryServer;
 let client: MongoClient;
@@ -19,7 +19,7 @@ beforeAll(async () => {
   mongod = await MongoMemoryServer.create();
   client = new MongoClient(mongod.getUri());
   await client.connect();
-  db = client.db("trippo_test");
+  db = client.db("tripsync_test");
   await seedBostonCrew(db);
 }, 60_000);
 

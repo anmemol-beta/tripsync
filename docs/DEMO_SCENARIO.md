@@ -10,7 +10,7 @@ Demo group: **Boston Crew** (seo, jamie, min) planning a Tokyo trip 5/26–5/30.
 
 | Time | What's on screen | What's said (voiceover) | Tools the agent calls |
 |---|---|---|---|
-| **0:00–0:10** | Title card: "Trippo — Group travel planning, agent-first". Logo. Tagline: "MongoDB is its memory. Gemini 3 is its brain. Your group chat is its UI." | "Trippo is a group-travel planning agent. Two to five friends, one agent, MongoDB as shared memory." | — |
+| **0:00–0:10** | Title card: "Tripsync — Group travel planning, agent-first". Logo. Tagline: "MongoDB is its memory. Gemini 3 is its brain. Your group chat is its UI." | "Tripsync is a group-travel planning agent. Two to five friends, one agent, MongoDB as shared memory." | — |
 | **0:10–0:25** | Open the Boston Crew chat. Three members visible. seo types: *"우리 도쿄 5/26-5/30 갈건데 시부야 근처 호텔 추천해줘. 예산 1박 15만원"*. | "Seo asks the agent for a Shibuya hotel. Watch what the agent does — not what it says." | — |
 | **0:25–0:55** | Cut to a side panel showing the agent's tool trace, live. Lines appear one by one. | "Three tool calls before it replies. First it loads the trip context from MongoDB. Then it searches. Then it writes a proposal — five options, persisted as a document." | `find_trip`, `search_hotels`, `insert_proposal` |
 | **0:55–1:10** | Back to the chat. The agent replies with a numbered list of 5 hotels. Vote buttons under each option. | "The agent doesn't decide. It proposes. The group decides." | — |

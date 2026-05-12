@@ -8,7 +8,7 @@ import {
   type ProposalOption,
   type TripDoc,
   type VoteDoc,
-} from "@trippo/schema";
+} from "@tripsync/schema";
 import {
   AppendHistoryArgs,
   AppendVoteArgs,

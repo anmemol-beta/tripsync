@@ -1,6 +1,6 @@
 # MongoDB MCP Integration
 
-How Trippo's agent talks to MongoDB through the MCP server.
+How Tripsync's agent talks to MongoDB through the MCP server.
 
 The agent does **not** see raw `find` / `insert-one` calls. It sees **domain tools** (e.g. `find_trip`, `insert_proposal`). Each domain tool is implemented in `packages/agent/src/tools/` as a thin wrapper that issues one or more MongoDB MCP primitive calls.
 

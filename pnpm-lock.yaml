@@ -8,13 +8,13 @@ importers:
 
   .:
     dependencies:
-      '@trippo/agent':
+      '@tripsync/agent':
         specifier: workspace:*
         version: link:packages/agent
-      '@trippo/schema':
+      '@tripsync/schema':
         specifier: workspace:*
         version: link:packages/schema
-      '@trippo/seed':
+      '@tripsync/seed':
         specifier: workspace:*
         version: link:packages/seed
     devDependencies:
@@ -39,13 +39,13 @@ importers:
       '@hono/node-server':
         specifier: ^1.13.7
         version: 1.19.14(hono@4.12.18)
-      '@trippo/agent':
+      '@tripsync/agent':
         specifier: workspace:*
         version: link:../../packages/agent
-      '@trippo/schema':
+      '@tripsync/schema':
         specifier: workspace:*
         version: link:../../packages/schema
-      '@trippo/seed':
+      '@tripsync/seed':
         specifier: workspace:*
         version: link:../../packages/seed
       hono:
@@ -58,9 +58,11 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
 
+  apps/web: {}
+
   packages/agent:
     dependencies:
-      '@trippo/schema':
+      '@tripsync/schema':
         specifier: workspace:*
         version: link:../schema
       mongodb:
@@ -78,7 +80,7 @@ importers:
 
   packages/seed:
     dependencies:
-      '@trippo/schema':
+      '@tripsync/schema':
         specifier: workspace:*
         version: link:../schema
       mongodb:

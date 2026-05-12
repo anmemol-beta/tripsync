@@ -4,7 +4,7 @@ import {
   type MemberDoc,
   type MessageDoc,
   type TripDoc,
-} from "@trippo/schema";
+} from "@tripsync/schema";
 
 export const BOSTON_CREW_TRIP_ID = "trip_tokyo_2026_05";
 export const BOSTON_CREW_GROUP_ID = "grp_boston_crew";

@@ -1,4 +1,4 @@
-# Product Requirements — Trippo Agent
+# Product Requirements — Tripsync Agent
 
 > One-pager. An outsider should be able to read this and explain (a) what it is, (b) why it wins the MongoDB track, (c) what each hackathon judging criterion maps to.
 
@@ -6,7 +6,7 @@
 
 ## 1. One-liner
 
-**Trippo is a group-travel planning agent that lives inside a chat your friends already use, with MongoDB as its shared memory.**
+**Tripsync is a group-travel planning agent that lives inside a chat your friends already use, with MongoDB as its shared memory.**
 
 Two to five friends talk to one agent. The agent searches, proposes, runs votes, persists decisions, and keeps everyone in sync — across turns, across sessions, across humans.
 
@@ -44,7 +44,7 @@ Primary persona: late-20s/30s friend groups, mixed timezones, no single "trip le
 
 Solo travel agents are easy. Most hackathon entries will build "ask Gemini to plan my trip." Ours is the only category that **requires shared state across humans**, which is exactly what MongoDB is good at:
 
-| Capability | Solo agent | Trippo |
+| Capability | Solo agent | Tripsync |
 |---|---|---|
 | Reads user input | ✓ | ✓ |
 | Calls external tools | ✓ | ✓ |
@@ -67,7 +67,7 @@ In:
 
 Out:
 - Real bookings / payments.
-- Photo / EXIF / recap-video (this is the OLD Trippo's surface; the NEW Trippo is agent-first).
+- Photo / EXIF / recap-video (this was the Remy-era product's surface; Tripsync is agent-first).
 - Auth — mock user IDs are enough.
 - Push notifications.
 
@@ -75,7 +75,7 @@ Out:
 
 The hackathon grades on (per Devpost rules + observed Gemini 3 / Agent Builder messaging):
 
-| Criterion | How Trippo wins |
+| Criterion | How Tripsync wins |
 |---|---|
 | **Required stack used (Gemini 3 + Agent Builder + MongoDB MCP)** | All three are core; remove any one and the product breaks. Gemini drives the agent. Agent Builder hosts and observes. MongoDB MCP is the agent's read/write memory. |
 | **Multi-step tool use** | Every user turn touches 3–6 tool calls (find_trip → search → insert_proposal → tally_votes → update_trip → append_history). |

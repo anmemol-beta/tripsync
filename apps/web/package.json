@@ -1,5 +1,5 @@
 {
-  "name": "@trippo/web",
+  "name": "@tripsync/web",
   "version": "0.1.0",
   "private": true,
   "description": "Static chat-room UI (single-file). Upgrade to Next.js in week 1.",

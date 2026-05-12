@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server";
 import { MongoClient } from "mongodb";
-import { MockGeminiClient } from "@trippo/agent";
+import { MockGeminiClient } from "@tripsync/agent";
 import { buildApp } from "./app.js";
 
 async function main(): Promise<void> {
@@ -20,7 +20,7 @@ async function main(): Promise<void> {
   const app = buildApp({ db, gemini });
   const port = Number(process.env["PORT"] ?? 4000);
   serve({ fetch: app.fetch, port });
-  console.log(`trippo-api listening on :${port}`);
+  console.log(`tripsync-api listening on :${port}`);
 }
 
 main().catch((err) => {

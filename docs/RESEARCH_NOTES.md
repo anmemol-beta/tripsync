@@ -17,7 +17,7 @@ Findings collected during overnight build loop. Source URLs included so a human 
 - Agents point at MCP endpoints (no regional config); auth flows through Cloud IAM Deny policies.
 - A Cloud API Registry lets admins manage available tools for developers across the org from the Vertex AI Agent Builder Console (`ApiRegistry`).
 
-### Implication for Trippo
+### Implication for Tripsync
 - We treat MongoDB MCP as a remote MCP endpoint the agent is configured to call.
 - Locally / for our happy-path test we do NOT need to spin up an MCP server. We define our "tools" as TypeScript functions over the official `mongodb` driver. The MCP wiring is a deployment concern — same tool surface, swappable transport.
 - See `docs/MCP_INTEGRATION.md` for the concrete tool list.
@@ -49,7 +49,7 @@ Findings collected during overnight build loop. Source URLs included so a human 
 - `export` — Extended JSON
 - `mongodb-logs`
 
-### Implication for Trippo
+### Implication for Tripsync
 - Our agent's tool surface is a **typed wrapper around MongoDB CRUD + aggregation**, scoped to the trips/proposals/votes domain. We do NOT expose raw `find` to the LLM — we expose domain tools like `mongodb.find_trip(trip_id)` that *internally* call `find`. This keeps the agent's tool schema legible and the prompts short.
 - For the hackathon, "uses MongoDB MCP" is satisfied at the deploy layer (Agent Builder points at the MongoDB MCP server). For the offline happy-path test we call the same domain tools with the in-memory MongoDB.
 
@@ -74,7 +74,7 @@ Findings collected during overnight build loop. Source URLs included so a human 
 2. Extend Capabilities — perform computations
 3. Take Actions — interact with external systems
 
-### Implication for Trippo
+### Implication for Tripsync
 - Our agent will be allowed `Google Search` (or Maps Grounding) for hotel discovery when a real API isn't wired, plus our custom domain tools backed by MongoDB.
 - We MUST plumb the per-call `id` through our mock Gemini client so we don't trip ourselves up when we move from mock to real.
 - See `docs/AGENT_DESIGN.md` for tool definitions and system prompt.

@@ -11,5 +11,5 @@ createServer((_req, res) => {
   res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
   res.end(html);
 }).listen(port, () => {
-  console.log(`trippo-web on http://localhost:${port}`);
+  console.log(`tripsync-web on http://localhost:${port}`);
 });

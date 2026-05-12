@@ -1,4 +1,4 @@
-# trippo-agent
+# Tripsync
 
 Group travel planning agent for the **Google Cloud Rapid Agent Hackathon (MongoDB track)**.
 

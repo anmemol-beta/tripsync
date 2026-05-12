@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ProposalKind, ProposalOption } from "@trippo/schema";
+import { ProposalKind, ProposalOption } from "@tripsync/schema";
 
 export const FindTripArgs = z.object({ trip_id: z.string() });
 export type FindTripArgs = z.infer<typeof FindTripArgs>;
