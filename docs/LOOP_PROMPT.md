@@ -5,7 +5,9 @@ This is the canonical procedure for one firing of the Tripsync autonomous build 
 ---
 
 ## Repo
-`/Users/hunjunsin/Desktop/travel/trippo-agent` — work on the **`loop/auto`** branch only. Never touch `main`.
+`anmemol-beta/tripsync`. Each firing runs as a remote scheduled agent on its own fresh clone — there is no local machine, no local files, no local environment variables. Work on the **`loop/auto`** branch only. Never touch `main`.
+
+If `pnpm` is not on PATH, run `corepack enable pnpm` once before the verify steps.
 
 ## One firing = one backlog item
 
@@ -32,7 +34,7 @@ This is the canonical procedure for one firing of the Tripsync autonomous build 
 - **Backlog only.** Never invent items, never refactor unbroken code, never add speculative features or config. If you think the backlog is wrong, note it in `docs/LOOP_LOG.md` — do not act on it.
 - **Offline only.** Never run live deploys, never create cloud resources, never need an API key. For key-dependent items, write the code/config/docs behind a clean interface, mark `TODO(needs-user)`, done.
 - **Architecture forks:** pick the conservative, easily-reversible option. Record the choice + reason in `docs/DECISIONS.md`. Keep going — do not stop to ask.
-- **Surgical.** One item = one commit (plus the claim/status flips). Every changed line traceable to the item. Follow `~/.claude/CLAUDE.md` (Karpathy guidelines) strictly.
+- **Surgical.** One item = one commit (plus the claim/status flips). Every changed line traceable to the item. Do not "improve" adjacent code, do not refactor what is not broken, follow the existing code style, prefer the 50-line solution over the 200-line one.
 - **Git safety:** never touch `main`, never force-push, never delete branches, never `reset --hard` shared history. Only `fetch` / `checkout loop/auto` / `pull --ff-only` / `commit` / `push origin loop/auto`.
 - **Green gate:** `pnpm typecheck` and `pnpm test` must be green at every push to `loop/auto`.
 - **No secrets** committed, ever.
