@@ -22,7 +22,7 @@ Add `activity` as a working decision kind. Note: `decisions.activities` is an **
 New `test/edge-cases.test.ts` covering the policy in `AGENT_DESIGN.md` §3: (a) tie vote → `tally_votes.winner_option_id === null`; (b) quorum not met → `quorum_met === false`, `update_trip_decision` not called; (c) re-vote → same voter voting twice overwrites, vote count stays at distinct voters; (d) `insert_proposal` rejects a second open proposal of the same kind.
 **Verify:** all 4 cases asserted, `pnpm test` green.
 
-### 4. `[ ]` find_trip history read-back
+### 4. `[~]` find_trip history read-back
 `MCP_INTEGRATION.md` §2 says `find_trip` should let the agent reason over past decisions. Add a `get_trip_history` tool (or extend `find_trip`) that returns the last N `history` rows for a trip, so the agent can answer "우리 호텔 뭐로 정했었지".
 **Verify:** test — after a decision, the tool returns the `decision_made` history row. Tool registered in `TOOL_NAMES`/`TOOL_SCHEMAS`. Green.
 
