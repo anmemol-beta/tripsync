@@ -42,7 +42,7 @@ New `test/edge-cases.test.ts` covering the policy in `AGENT_DESIGN.md` §3: (a) 
 `apps/web` is a single `public/index.html` today. Upgrade to Next.js (App Router) per `MILESTONES.md` Week 3 — proper components for the chat thread, message bubble, vote buttons, trace panel. Keep it mobile-first. Do not add features beyond what the HTML stub already does plus the trace panel from item 7.
 **Verify:** `pnpm --filter @tripsync/web build` succeeds. `pnpm typecheck` green. No new `any`.
 
-### 9. `[ ]` VertexGeminiClient (write-only, untested)
+### 9. `[~]` VertexGeminiClient (write-only, untested)
 Write `VertexGeminiClient` implementing the `GeminiClient` interface against Vertex AI's `generateContent` (Gemini 3, function calling, per-call `id` round-trip per `RESEARCH_NOTES.md` §3). Cannot be tested without `GOOGLE_AI_API_KEY` — mark `TODO(needs-user)` on the live call path. `MockGeminiClient` stays the default for tests.
 **Verify:** file compiles (`pnpm typecheck` green), `GeminiClient` interface unchanged so the mock still satisfies it, all existing tests still green.
 
