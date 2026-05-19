@@ -42,7 +42,7 @@ New `test/edge-cases.test.ts` covering the policy in `AGENT_DESIGN.md` §3: (a) 
 `apps/web` is a single `public/index.html` today. Upgrade to Next.js (App Router) per `MILESTONES.md` Week 3 — proper components for the chat thread, message bubble, vote buttons, trace panel. Keep it mobile-first. Do not add features beyond what the HTML stub already does plus the trace panel from item 7.
 **Verify:** `pnpm --filter @tripsync/web build` succeeds. `pnpm typecheck` green. No new `any`.
 
-### 9. `[~]` VertexGeminiClient (write-only, untested)
+### 9. `[x]` VertexGeminiClient (write-only, untested)
 Write `VertexGeminiClient` implementing the `GeminiClient` interface against Vertex AI's `generateContent` (Gemini 3, function calling, per-call `id` round-trip per `RESEARCH_NOTES.md` §3). Cannot be tested without `GOOGLE_AI_API_KEY` — mark `TODO(needs-user)` on the live call path. `MockGeminiClient` stays the default for tests.
 **Verify:** file compiles (`pnpm typecheck` green), `GeminiClient` interface unchanged so the mock still satisfies it, all existing tests still green.
 
@@ -64,3 +64,4 @@ Add `packages/schema/src/indexes.ts` (or a setup script) that declares indices �
 - **2026-05-19** Item 6: HITL decision-change guard — extended `insertProposal` in `runtime.ts` to reject new hotel/flight proposals when that kind is already decided; `test/decision-change-guard.test.ts` (2 cases: hotel proposal rejected when decided, activity proposals still allowed). 13/13 tests green.
 - **2026-05-19** Item 7: /trace endpoint + UI trace panel — `TraceDoc`/`TraceCallEntry` added to schema; `runTurn()` persists trace to `traces` collection; `GET /trace/:trip_id` added to Hono app; `apps/web/public/index.html` gains collapsible trace panel; `test/trace-endpoint.test.ts` (2 cases: empty array before turn, structured trace after turn). 15/15 tests green. UI manual-verify: trace panel renders tool call names and reply per turn.
 - **2026-05-19** Item 8: Next.js frontend upgrade — added `next@14`, `react@18`, `react-dom@18` to `apps/web`; App Router with `app/layout.tsx`, `app/page.tsx`, `app/globals.css`; components: `ChatApp`, `MessageBubble`, `TracePanel`, `ChatForm`; `tsconfig.json` + `next.config.mjs`. `pnpm --filter @tripsync/web build` green, `pnpm typecheck` green, 15/15 tests green.
+- **2026-05-19** Item 9: VertexGeminiClient — `packages/agent/src/vertex.ts` implements `GeminiClient` via Vertex AI `generateContent` REST API; maps `Turn[]` history to Vertex content format with per-call `id` round-trip; marks `TODO(needs-user)` on live network call; exported from `index.ts`. `pnpm typecheck` green, 15/15 tests green.
