@@ -22,7 +22,7 @@ Add `activity` as a working decision kind. Note: `decisions.activities` is an **
 New `test/edge-cases.test.ts` covering the policy in `AGENT_DESIGN.md` §3: (a) tie vote → `tally_votes.winner_option_id === null`; (b) quorum not met → `quorum_met === false`, `update_trip_decision` not called; (c) re-vote → same voter voting twice overwrites, vote count stays at distinct voters; (d) `insert_proposal` rejects a second open proposal of the same kind.
 **Verify:** all 4 cases asserted, `pnpm test` green.
 
-### 4. `[~]` find_trip history read-back
+### 4. `[x]` find_trip history read-back
 `MCP_INTEGRATION.md` §2 says `find_trip` should let the agent reason over past decisions. Add a `get_trip_history` tool (or extend `find_trip`) that returns the last N `history` rows for a trip, so the agent can answer "우리 호텔 뭐로 정했었지".
 **Verify:** test — after a decision, the tool returns the `decision_made` history row. Tool registered in `TOOL_NAMES`/`TOOL_SCHEMAS`. Green.
 
@@ -59,3 +59,4 @@ Add `packages/schema/src/indexes.ts` (or a setup script) that declares indices �
 ## Done log
 
 - **2026-05-19** Item 3: Edge-case test suite — `test/edge-cases.test.ts` (4 cases: tie vote, quorum not met, re-vote overwrites, duplicate open proposal rejected). Also replaced `MongoMemoryServer` with in-memory mock in `happy-path.test.ts` to unblock all tests. 7/7 tests green.
+- **2026-05-19** Item 4: find_trip history read-back — added `get_trip_history` tool to `TOOL_NAMES`/`TOOL_SCHEMAS`/`TOOLS`, `test/trip-history.test.ts` (3 cases: decision_made row returned, limit respected, empty for unknown trip). 10/10 tests green.

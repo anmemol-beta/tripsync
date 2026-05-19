@@ -13,6 +13,7 @@ import {
   AppendHistoryArgs,
   AppendVoteArgs,
   FindTripArgs,
+  GetTripHistoryArgs,
   InsertProposalArgs,
   ListMembersArgs,
   SearchActivitiesArgs,
@@ -288,6 +289,19 @@ export async function appendHistory(
   return { history_id: doc._id };
 }
 
+export async function getTripHistory(
+  ctx: ToolContext,
+  raw: unknown,
+): Promise<HistoryDoc[]> {
+  const args = GetTripHistoryArgs.parse(raw);
+  const rows = await ctx.db
+    .collection<HistoryDoc>(COLLECTIONS.history)
+    .find({ trip_id: args.trip_id })
+    .toArray();
+  rows.sort((a, b) => (a.created_at > b.created_at ? -1 : a.created_at < b.created_at ? 1 : 0));
+  return rows.slice(0, args.limit);
+}
+
 export type ToolImpl = (ctx: ToolContext, args: unknown) => Promise<unknown>;
 
 export const TOOLS: Record<ToolName, ToolImpl> = {
@@ -301,6 +315,7 @@ export const TOOLS: Record<ToolName, ToolImpl> = {
   tally_votes: tallyVotes,
   update_trip_decision: updateTripDecision,
   append_history: appendHistory,
+  get_trip_history: getTripHistory,
 };
 
 // Re-export to keep ToolName + TOOL_SCHEMAS consistent at the boundary.

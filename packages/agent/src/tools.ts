@@ -59,6 +59,12 @@ export const UpdateTripDecisionArgs = z.object({
 });
 export type UpdateTripDecisionArgs = z.infer<typeof UpdateTripDecisionArgs>;
 
+export const GetTripHistoryArgs = z.object({
+  trip_id: z.string(),
+  limit: z.number().int().positive().default(20),
+});
+export type GetTripHistoryArgs = z.infer<typeof GetTripHistoryArgs>;
+
 export const AppendHistoryArgs = z.object({
   trip_id: z.string(),
   event_type: z.enum([
@@ -84,6 +90,7 @@ export const TOOL_NAMES = [
   "tally_votes",
   "update_trip_decision",
   "append_history",
+  "get_trip_history",
 ] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
@@ -98,4 +105,5 @@ export const TOOL_SCHEMAS = {
   tally_votes: TallyVotesArgs,
   update_trip_decision: UpdateTripDecisionArgs,
   append_history: AppendHistoryArgs,
+  get_trip_history: GetTripHistoryArgs,
 } as const;
