@@ -1,6 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { MongoMemoryServer } from "mongodb-memory-server";
-import { MongoClient, type Db } from "mongodb";
+import { beforeAll, describe, expect, it } from "vitest";
+import type { Db } from "mongodb";
 import {
   COLLECTIONS,
   type HistoryDoc,
@@ -10,22 +9,13 @@ import {
 } from "@tripsync/schema";
 import { BOSTON_CREW_TRIP_ID, seedBostonCrew } from "@tripsync/seed";
 import { MockGeminiClient, runTurn, appendVote } from "@tripsync/agent";
+import { createMemDb } from "./utils/memdb.js";
 
-let mongod: MongoMemoryServer;
-let client: MongoClient;
 let db: Db;
 
 beforeAll(async () => {
-  mongod = await MongoMemoryServer.create();
-  client = new MongoClient(mongod.getUri());
-  await client.connect();
-  db = client.db("tripsync_test");
+  db = createMemDb();
   await seedBostonCrew(db);
-}, 60_000);
-
-afterAll(async () => {
-  await client.close();
-  await mongod.stop();
 });
 
 describe("happy path: hotel proposal -> votes -> decision", () => {
