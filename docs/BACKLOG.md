@@ -18,7 +18,7 @@ Add `flight` as a working decision kind end-to-end, mirroring the hotel pattern.
 Add `activity` as a working decision kind. Note: `decisions.activities` is an **array** — `update_trip_decision` already `$push`es for `kind:"activity"`. Give `search_activities` a `mockSearchActivities`. The flow allows multiple activity decisions on one trip.
 **Verify:** new `test/activity-path.test.ts` — two separate activity proposals both decided, `trips.decisions.activities` has 2 entries. Green typecheck + test.
 
-### 3. `[ ]` Edge-case test suite
+### 3. `[~]` Edge-case test suite
 New `test/edge-cases.test.ts` covering the policy in `AGENT_DESIGN.md` §3: (a) tie vote → `tally_votes.winner_option_id === null`; (b) quorum not met → `quorum_met === false`, `update_trip_decision` not called; (c) re-vote → same voter voting twice overwrites, vote count stays at distinct voters; (d) `insert_proposal` rejects a second open proposal of the same kind.
 **Verify:** all 4 cases asserted, `pnpm test` green.
 
