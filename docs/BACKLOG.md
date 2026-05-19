@@ -34,7 +34,7 @@ New `test/edge-cases.test.ts` covering the policy in `AGENT_DESIGN.md` §3: (a) 
 `AGENT_DESIGN.md` §4.3: if `decisions.<kind>` is already set, the agent must surface the existing decision before opening a new proposal of the same kind. Add a test that scripts this and asserts the guard. If `insert_proposal`'s existing-open-proposal check needs extending to also consider decided kinds, do that in `runtime.ts`.
 **Verify:** test — with a trip that already decided a hotel, a new hotel proposal attempt is gated. Green.
 
-### 7. `[ ]` /trace endpoint + UI trace panel
+### 7. `[~]` /trace endpoint + UI trace panel
 `MILESTONES.md` Week 2 Day 5. Add `GET /trace/:trip_id` to `apps/api` returning the agent's tool calls grouped by turn (read from `messages` + a per-turn trace, or persist traces). Render it in `apps/web` as a side panel — the demo (`DEMO_SCENARIO.md`) leans on showing the tool trace live.
 **Verify:** endpoint returns structured trace JSON; a test hits it after a happy-path turn. Web renders it (manual note in LOOP_LOG if UI can't be auto-verified). Green typecheck + test.
 
