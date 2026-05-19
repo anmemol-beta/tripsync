@@ -26,7 +26,7 @@ New `test/edge-cases.test.ts` covering the policy in `AGENT_DESIGN.md` §3: (a) 
 `MCP_INTEGRATION.md` §2 says `find_trip` should let the agent reason over past decisions. Add a `get_trip_history` tool (or extend `find_trip`) that returns the last N `history` rows for a trip, so the agent can answer "우리 호텔 뭐로 정했었지".
 **Verify:** test — after a decision, the tool returns the `decision_made` history row. Tool registered in `TOOL_NAMES`/`TOOL_SCHEMAS`. Green.
 
-### 5. `[ ]` HITL: ambiguous-ask clarifying question
+### 5. `[~]` HITL: ambiguous-ask clarifying question
 `AGENT_DESIGN.md` §4.1: when a hotel/flight/activity ask lacks dates or budget, the agent asks one clarifying question instead of searching. This is a prompt + flow behavior — add a test that scripts the mock Gemini to return a clarifying-question text turn (no tool calls) and asserts no `insert_proposal` happened.
 **Verify:** test asserts `trace.calls` has no `search_*`/`insert_proposal` and `trace.reply` is a question. Green.
 
