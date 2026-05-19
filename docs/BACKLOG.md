@@ -30,7 +30,7 @@ New `test/edge-cases.test.ts` covering the policy in `AGENT_DESIGN.md` §3: (a) 
 `AGENT_DESIGN.md` §4.1: when a hotel/flight/activity ask lacks dates or budget, the agent asks one clarifying question instead of searching. This is a prompt + flow behavior — add a test that scripts the mock Gemini to return a clarifying-question text turn (no tool calls) and asserts no `insert_proposal` happened.
 **Verify:** test asserts `trace.calls` has no `search_*`/`insert_proposal` and `trace.reply` is a question. Green.
 
-### 6. `[ ]` HITL: decision-change guard
+### 6. `[~]` HITL: decision-change guard
 `AGENT_DESIGN.md` §4.3: if `decisions.<kind>` is already set, the agent must surface the existing decision before opening a new proposal of the same kind. Add a test that scripts this and asserts the guard. If `insert_proposal`'s existing-open-proposal check needs extending to also consider decided kinds, do that in `runtime.ts`.
 **Verify:** test — with a trip that already decided a hotel, a new hotel proposal attempt is gated. Green.
 
