@@ -38,7 +38,7 @@ New `test/edge-cases.test.ts` covering the policy in `AGENT_DESIGN.md` §3: (a) 
 `MILESTONES.md` Week 2 Day 5. Add `GET /trace/:trip_id` to `apps/api` returning the agent's tool calls grouped by turn (read from `messages` + a per-turn trace, or persist traces). Render it in `apps/web` as a side panel — the demo (`DEMO_SCENARIO.md`) leans on showing the tool trace live.
 **Verify:** endpoint returns structured trace JSON; a test hits it after a happy-path turn. Web renders it (manual note in LOOP_LOG if UI can't be auto-verified). Green typecheck + test.
 
-### 8. `[ ]` Next.js frontend upgrade
+### 8. `[~]` Next.js frontend upgrade
 `apps/web` is a single `public/index.html` today. Upgrade to Next.js (App Router) per `MILESTONES.md` Week 3 — proper components for the chat thread, message bubble, vote buttons, trace panel. Keep it mobile-first. Do not add features beyond what the HTML stub already does plus the trace panel from item 7.
 **Verify:** `pnpm --filter @tripsync/web build` succeeds. `pnpm typecheck` green. No new `any`.
 
