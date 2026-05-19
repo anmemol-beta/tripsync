@@ -10,7 +10,7 @@ Ordered task queue for the autonomous build loop. The loop does **one item per f
 
 ## Queue
 
-### 1. `[ ]` Flight decision type
+### 1. `[~]` Flight decision type
 Add `flight` as a working decision kind end-to-end, mirroring the hotel pattern. `search_flights` already has a stub returning `[]` — give it a `mockSearchFlights` (canned 5 candidates, like `mockSearchHotels`). Wire the full propose → vote → decide → history flow.
 **Verify:** new `test/flight-path.test.ts` passes — propose flights → 3 votes → decide → `trips.decisions.flight` set, proposal `decided`, history row exists. `pnpm typecheck` + `pnpm test` green.
 
