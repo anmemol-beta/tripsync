@@ -19,6 +19,14 @@
       .author { font-size: 11px; color: #999; margin-bottom: 2px; }
       .trace { font-size: 11px; color: #999; align-self: flex-start; padding: 4px 8px; }
       form { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid #eee; background: #fff; }
+      #trace-panel { border-top: 1px solid #eee; background: #fff; font-size: 12px; }
+      #trace-toggle { width: 100%; padding: 8px 16px; text-align: left; background: none; border: none; border-radius: 0; font-size: 12px; color: #555; cursor: pointer; }
+      #trace-body { display: none; padding: 0 16px 12px; overflow-x: auto; }
+      #trace-body.open { display: block; }
+      .trace-turn { margin-bottom: 10px; }
+      .trace-turn summary { font-weight: 600; color: #333; cursor: pointer; padding: 2px 0; }
+      .trace-turn ol { margin: 4px 0 0 0; padding-left: 20px; color: #555; }
+      .trace-turn li { margin: 2px 0; font-family: monospace; font-size: 11px; }
       input { flex: 1; padding: 10px 12px; border: 1px solid #ddd; border-radius: 999px; font-size: 16px; }
       button { padding: 10px 16px; border: 0; border-radius: 999px; background: #111; color: #fff; font-size: 14px; }
       select { padding: 6px 8px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; }
@@ -35,6 +43,10 @@
         <input id="text" placeholder="say something..." autocomplete="off" />
         <button>send</button>
       </form>
+      <div id="trace-panel">
+        <button id="trace-toggle">▶ agent tool trace (0 turns)</button>
+        <div id="trace-body"></div>
+      </div>
     </div>
     <script>
       const API = location.origin.replace(/:\d+$/, ":4000");
@@ -58,6 +70,22 @@
         thread.appendChild(div);
       }
 
+      const traceToggle = document.getElementById("trace-toggle");
+      const traceBody = document.getElementById("trace-body");
+      traceToggle.addEventListener("click", () => traceBody.classList.toggle("open"));
+
+      async function refreshTrace() {
+        try {
+          const r = await fetch(API + "/trace/" + TRIP_ID);
+          const turns = await r.json();
+          traceToggle.textContent = (traceBody.classList.contains("open") ? "▼" : "▶") + " agent tool trace (" + turns.length + " turns)";
+          traceBody.innerHTML = turns.map((t, i) => {
+            const calls = (t.calls || []).map(c => "<li>" + c.name + "(" + JSON.stringify(c.args).slice(0, 60) + "…)</li>").join("");
+            return "<details class='trace-turn'><summary>Turn " + (i + 1) + " — " + (t.calls || []).map(c => c.name).join(" → ") + "</summary><ol>" + calls + "</ol><div style='color:#777;padding:4px 0'>" + (t.reply || "") + "</div></details>";
+          }).join("") || "<p style='color:#aaa;margin:4px 0'>no traces yet</p>";
+        } catch (_) {}
+      }
+
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
         const body = text.value.trim();
@@ -74,6 +102,7 @@
           const j = await r.json();
           if (j.tool_calls && j.tool_calls.length) trace(j.tool_calls);
           if (j.reply) add("agent", "agent", j.reply);
+          await refreshTrace();
         } catch (err) {
           add("agent", "system", "request failed: " + err.message);
         }

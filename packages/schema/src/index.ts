@@ -119,6 +119,22 @@ export const HistoryDoc = z.object({
 });
 export type HistoryDoc = z.infer<typeof HistoryDoc>;
 
+export const TraceCallEntry = z.object({
+  id: z.string(),
+  name: z.string(),
+  args: z.record(z.unknown()),
+});
+export type TraceCallEntry = z.infer<typeof TraceCallEntry>;
+
+export const TraceDoc = z.object({
+  _id: z.string(),
+  trip_id: z.string(),
+  calls: z.array(TraceCallEntry),
+  reply: z.string(),
+  created_at: ISODateTime,
+});
+export type TraceDoc = z.infer<typeof TraceDoc>;
+
 export const COLLECTIONS = {
   trips: "trips",
   members: "members",
@@ -126,6 +142,7 @@ export const COLLECTIONS = {
   proposals: "proposals",
   votes: "votes",
   history: "history",
+  traces: "traces",
 } as const;
 
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];

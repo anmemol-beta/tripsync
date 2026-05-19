@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Db } from "mongodb";
 import { z } from "zod";
-import { COLLECTIONS, type TripDoc } from "@tripsync/schema";
+import { COLLECTIONS, type TripDoc, type TraceDoc } from "@tripsync/schema";
 import {
   appendVote,
   runTurn,
@@ -49,6 +49,15 @@ export function buildApp(deps: AppDeps): Hono {
       body,
     );
     return c.json(result);
+  });
+
+  app.get("/trace/:trip_id", async (c) => {
+    const tripId = c.req.param("trip_id");
+    const traces = await deps.db
+      .collection<TraceDoc>(COLLECTIONS.traces)
+      .find({ trip_id: tripId })
+      .toArray();
+    return c.json(traces);
   });
 
   app.get("/trip/:id", async (c) => {

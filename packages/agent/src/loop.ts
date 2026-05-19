@@ -1,5 +1,5 @@
 import type { Db } from "mongodb";
-import { COLLECTIONS, type MessageDoc } from "@tripsync/schema";
+import { COLLECTIONS, type MessageDoc, type TraceDoc } from "@tripsync/schema";
 import type { FunctionCall, GeminiClient, Turn } from "./gemini.js";
 import { TOOLS, type ToolContext } from "./runtime.js";
 import { TOOL_NAMES, TOOL_SCHEMAS, type ToolName } from "./tools.js";
@@ -29,6 +29,9 @@ const isToolName = (n: string): n is ToolName =>
 
 const newMsgId = (): string =>
   `msg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+
+const newTraceId = (): string =>
+  `trace_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 
 export async function runTurn(args: RunTurnArgs): Promise<AgentTrace> {
   const { db, gemini, tripId, author, userText, ctx: ctxOverride, maxToolHops = 8 } = args;
@@ -65,6 +68,14 @@ export async function runTurn(args: RunTurnArgs): Promise<AgentTrace> {
         created_at: now(),
       };
       await db.collection<MessageDoc>(COLLECTIONS.messages).insertOne(agentMsg);
+      const traceDoc: TraceDoc = {
+        _id: newTraceId(),
+        trip_id: tripId,
+        calls: trace.calls.map((c) => ({ id: c.id, name: c.name, args: c.args })),
+        reply: trace.reply,
+        created_at: now(),
+      };
+      await db.collection<TraceDoc>(COLLECTIONS.traces).insertOne(traceDoc);
       return trace;
     }
 

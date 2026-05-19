@@ -34,7 +34,7 @@ New `test/edge-cases.test.ts` covering the policy in `AGENT_DESIGN.md` §3: (a) 
 `AGENT_DESIGN.md` §4.3: if `decisions.<kind>` is already set, the agent must surface the existing decision before opening a new proposal of the same kind. Add a test that scripts this and asserts the guard. If `insert_proposal`'s existing-open-proposal check needs extending to also consider decided kinds, do that in `runtime.ts`.
 **Verify:** test — with a trip that already decided a hotel, a new hotel proposal attempt is gated. Green.
 
-### 7. `[~]` /trace endpoint + UI trace panel
+### 7. `[x]` /trace endpoint + UI trace panel
 `MILESTONES.md` Week 2 Day 5. Add `GET /trace/:trip_id` to `apps/api` returning the agent's tool calls grouped by turn (read from `messages` + a per-turn trace, or persist traces). Render it in `apps/web` as a side panel — the demo (`DEMO_SCENARIO.md`) leans on showing the tool trace live.
 **Verify:** endpoint returns structured trace JSON; a test hits it after a happy-path turn. Web renders it (manual note in LOOP_LOG if UI can't be auto-verified). Green typecheck + test.
 
@@ -62,3 +62,4 @@ Add `packages/schema/src/indexes.ts` (or a setup script) that declares indices �
 - **2026-05-19** Item 4: find_trip history read-back — added `get_trip_history` tool to `TOOL_NAMES`/`TOOL_SCHEMAS`/`TOOLS`, `test/trip-history.test.ts` (3 cases: decision_made row returned, limit respected, empty for unknown trip). 10/10 tests green.
 - **2026-05-19** Item 5: HITL ambiguous-ask clarifying question — `test/ambiguous-ask.test.ts` (1 case: ambiguous hotel ask → MockGeminiClient returns text question, no search_* or insert_proposal calls, reply contains `?`). 11/11 tests green.
 - **2026-05-19** Item 6: HITL decision-change guard — extended `insertProposal` in `runtime.ts` to reject new hotel/flight proposals when that kind is already decided; `test/decision-change-guard.test.ts` (2 cases: hotel proposal rejected when decided, activity proposals still allowed). 13/13 tests green.
+- **2026-05-19** Item 7: /trace endpoint + UI trace panel — `TraceDoc`/`TraceCallEntry` added to schema; `runTurn()` persists trace to `traces` collection; `GET /trace/:trip_id` added to Hono app; `apps/web/public/index.html` gains collapsible trace panel; `test/trace-endpoint.test.ts` (2 cases: empty array before turn, structured trace after turn). 15/15 tests green. UI manual-verify: trace panel renders tool call names and reply per turn.
