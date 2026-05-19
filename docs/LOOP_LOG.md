@@ -9,3 +9,4 @@ One line per completed or blocked item.
 2026-05-19 16:13 — item 3: Edge-case test suite — DONE — replaced MongoMemoryServer with in-memory mock (test/utils/memdb.ts), added test/edge-cases.test.ts (4 edge cases), 7/7 tests green — typecheck/test green
 2026-05-19 17:10 — item 4: find_trip history read-back — DONE — added get_trip_history tool (GetTripHistoryArgs, runtime impl, TOOL_NAMES/TOOL_SCHEMAS/TOOLS), test/trip-history.test.ts (3 cases), 10/10 tests green — typecheck/test green
 2026-05-19 18:11 — item 5: HITL ambiguous-ask clarifying question — DONE — test/ambiguous-ask.test.ts (1 case: ambiguous hotel ask → text clarifying question, no search_*/insert_proposal calls), 11/11 tests green — typecheck/test green
+2026-05-19 19:10 — item 6: HITL decision-change guard — DONE — extended insertProposal in runtime.ts to reject hotel/flight when already decided; test/decision-change-guard.test.ts (2 cases), 13/13 tests green — typecheck/test green

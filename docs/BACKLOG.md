@@ -30,7 +30,7 @@ New `test/edge-cases.test.ts` covering the policy in `AGENT_DESIGN.md` §3: (a) 
 `AGENT_DESIGN.md` §4.1: when a hotel/flight/activity ask lacks dates or budget, the agent asks one clarifying question instead of searching. This is a prompt + flow behavior — add a test that scripts the mock Gemini to return a clarifying-question text turn (no tool calls) and asserts no `insert_proposal` happened.
 **Verify:** test asserts `trace.calls` has no `search_*`/`insert_proposal` and `trace.reply` is a question. Green.
 
-### 6. `[~]` HITL: decision-change guard
+### 6. `[x]` HITL: decision-change guard
 `AGENT_DESIGN.md` §4.3: if `decisions.<kind>` is already set, the agent must surface the existing decision before opening a new proposal of the same kind. Add a test that scripts this and asserts the guard. If `insert_proposal`'s existing-open-proposal check needs extending to also consider decided kinds, do that in `runtime.ts`.
 **Verify:** test — with a trip that already decided a hotel, a new hotel proposal attempt is gated. Green.
 
@@ -61,3 +61,4 @@ Add `packages/schema/src/indexes.ts` (or a setup script) that declares indices �
 - **2026-05-19** Item 3: Edge-case test suite — `test/edge-cases.test.ts` (4 cases: tie vote, quorum not met, re-vote overwrites, duplicate open proposal rejected). Also replaced `MongoMemoryServer` with in-memory mock in `happy-path.test.ts` to unblock all tests. 7/7 tests green.
 - **2026-05-19** Item 4: find_trip history read-back — added `get_trip_history` tool to `TOOL_NAMES`/`TOOL_SCHEMAS`/`TOOLS`, `test/trip-history.test.ts` (3 cases: decision_made row returned, limit respected, empty for unknown trip). 10/10 tests green.
 - **2026-05-19** Item 5: HITL ambiguous-ask clarifying question — `test/ambiguous-ask.test.ts` (1 case: ambiguous hotel ask → MockGeminiClient returns text question, no search_* or insert_proposal calls, reply contains `?`). 11/11 tests green.
+- **2026-05-19** Item 6: HITL decision-change guard — extended `insertProposal` in `runtime.ts` to reject new hotel/flight proposals when that kind is already decided; `test/decision-change-guard.test.ts` (2 cases: hotel proposal rejected when decided, activity proposals still allowed). 13/13 tests green.

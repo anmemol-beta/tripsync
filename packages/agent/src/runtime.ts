@@ -144,6 +144,17 @@ export async function insertProposal(
   raw: unknown,
 ): Promise<{ proposal_id: string }> {
   const args = InsertProposalArgs.parse(raw);
+  if (args.kind !== "activity") {
+    const kind: "hotel" | "flight" = args.kind;
+    const trip = await ctx.db
+      .collection<TripDoc>(COLLECTIONS.trips)
+      .findOne({ _id: args.trip_id });
+    if (trip?.decisions[kind] != null) {
+      throw new Error(
+        `decision already exists for kind=${args.kind}; surface it before opening a new proposal`,
+      );
+    }
+  }
   const existing = await ctx.db.collection<ProposalDoc>(COLLECTIONS.proposals).findOne({
     trip_id: args.trip_id,
     kind: args.kind,
