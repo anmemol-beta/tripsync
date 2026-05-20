@@ -50,7 +50,7 @@ Write `VertexGeminiClient` implementing the `GeminiClient` interface against Ver
 Per `DECISIONS.md` #6 (self-hosted MCP transport). Add a `deploy/mcp/` folder: a `Dockerfile` for `mongodb-js/mongodb-mcp-server`, a Cloud Run service definition, and a `deploy/mcp/README.md` with the deploy steps. Do NOT deploy (needs GCP). Allow only `find`/`insert-one`/`update-one`/`aggregate` per `MCP_INTEGRATION.md` §3.
 **Verify:** files exist and are internally consistent; README deploy steps are concrete. No code to typecheck — `pnpm test` still green (nothing broken).
 
-### 11. `[ ]` MongoDB indices + schema validation
+### 11. `[~]` MongoDB indices + schema validation
 Add `packages/schema/src/indexes.ts` (or a setup script) that declares indices — `proposals` on `(trip_id, kind, status)`, `votes` unique on `(proposal_id, voter)`, `history` on `(trip_id, created_at)` — and applies them. Optionally JSON-schema collection validators derived from the Zod schemas.
 **Verify:** a test creates the indices on an in-memory MongoDB and asserts the unique index rejects a duplicate `(proposal_id, voter)`. Green.
 
