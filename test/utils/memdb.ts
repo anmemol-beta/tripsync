@@ -40,6 +40,28 @@ function pushPath(obj: PlainDoc, path: string, value: unknown): void {
 
 class MemCollection<T extends PlainDoc> {
   private docs: T[] = [];
+  private uniqueIndexes: string[][] = [];
+
+  async createIndex(keys: Record<string, unknown>, options?: { unique?: boolean }): Promise<string> {
+    if (options?.unique) {
+      this.uniqueIndexes.push(Object.keys(keys));
+    }
+    return "ok";
+  }
+
+  private checkUnique(doc: PlainDoc): void {
+    for (const fields of this.uniqueIndexes) {
+      const dup = this.docs.some((existing) =>
+        fields.every((f) => (existing as PlainDoc)[f] === doc[f]),
+      );
+      if (dup) {
+        throw Object.assign(
+          new Error(`E11000 duplicate key error — unique index on (${fields.join(", ")})`),
+          { code: 11000 },
+        );
+      }
+    }
+  }
 
   async findOne(filter: Partial<T>): Promise<T | null> {
     return this.docs.find((d) => matchesFilter(d as PlainDoc, filter as PlainDoc)) ?? null;
@@ -53,6 +75,7 @@ class MemCollection<T extends PlainDoc> {
   }
 
   async insertOne(doc: T): Promise<{ insertedId: unknown }> {
+    this.checkUnique(doc as PlainDoc);
     this.docs.push(JSON.parse(JSON.stringify(doc)) as T);
     return { insertedId: (doc as PlainDoc)["_id"] };
   }
