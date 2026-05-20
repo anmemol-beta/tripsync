@@ -46,7 +46,7 @@ New `test/edge-cases.test.ts` covering the policy in `AGENT_DESIGN.md` §3: (a) 
 Write `VertexGeminiClient` implementing the `GeminiClient` interface against Vertex AI's `generateContent` (Gemini 3, function calling, per-call `id` round-trip per `RESEARCH_NOTES.md` §3). Cannot be tested without `GOOGLE_AI_API_KEY` — mark `TODO(needs-user)` on the live call path. `MockGeminiClient` stays the default for tests.
 **Verify:** file compiles (`pnpm typecheck` green), `GeminiClient` interface unchanged so the mock still satisfies it, all existing tests still green.
 
-### 10. `[ ]` mongodb-mcp-server self-host config
+### 10. `[~]` mongodb-mcp-server self-host config
 Per `DECISIONS.md` #6 (self-hosted MCP transport). Add a `deploy/mcp/` folder: a `Dockerfile` for `mongodb-js/mongodb-mcp-server`, a Cloud Run service definition, and a `deploy/mcp/README.md` with the deploy steps. Do NOT deploy (needs GCP). Allow only `find`/`insert-one`/`update-one`/`aggregate` per `MCP_INTEGRATION.md` §3.
 **Verify:** files exist and are internally consistent; README deploy steps are concrete. No code to typecheck — `pnpm test` still green (nothing broken).
 
