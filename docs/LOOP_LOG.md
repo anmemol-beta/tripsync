@@ -16,3 +16,4 @@ One line per completed or blocked item.
 2026-05-20 00:11 — item 10: mongodb-mcp-server self-host config — deploy/mcp/{Dockerfile,cloudrun.yaml,README.md} — typecheck/test green
 2026-05-20 01:12 — item 11: MongoDB indices + schema validation — packages/schema/src/indexes.ts (applyIndexes), MemCollection.createIndex+unique enforcement, test/indexes.test.ts (3 cases: apply, duplicate rejected, different proposal allowed), 18/18 tests green — typecheck/test green
 2026-05-20 02:00 — backlog exhausted, idle — all queue items are [x] or [blocked]; items 1 and 2 remain blocked on network policy (fastdl.mongodb.org); no todo items remain
+2026-05-20 03:00 — backlog exhausted, idle — no [ ] items; items 1 and 2 still blocked on network policy; items 3-11 done
