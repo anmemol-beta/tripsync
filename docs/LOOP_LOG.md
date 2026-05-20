@@ -13,3 +13,4 @@ One line per completed or blocked item.
 2026-05-19 20:13 — item 7: /trace endpoint + UI trace panel — DONE — TraceDoc/TraceCallEntry in schema, runTurn() persists to traces collection, GET /trace/:trip_id in Hono app, trace panel in index.html (collapsible, refreshes after each turn; manual verify only), test/trace-endpoint.test.ts (2 cases), 15/15 tests green — typecheck/test green
 2026-05-19 21:15 — item 8: Next.js frontend upgrade — DONE — apps/web upgraded from single HTML file to Next.js 14 App Router; components: ChatApp (client, state+fetch), MessageBubble, TracePanel (collapsible), ChatForm; mobile-first CSS in globals.css; next build green, pnpm typecheck green, 15/15 tests green — typecheck/test green
 2026-05-19 23:13 — item 9: VertexGeminiClient — packages/agent/src/vertex.ts — typecheck/test green
+2026-05-20 00:11 — item 10: mongodb-mcp-server self-host config — deploy/mcp/{Dockerfile,cloudrun.yaml,README.md} — typecheck/test green

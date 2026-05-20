@@ -1,0 +1,41 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: tripsync-mcp
+  annotations:
+    # TODO(needs-user): replace with your GCP project ID
+    run.googleapis.com/launch-stage: GA
+spec:
+  template:
+    metadata:
+      annotations:
+        # Scale to zero when idle; scale up to 2 for demo headroom
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "2"
+        # Use the Secret Manager secret for the Atlas URI (see README §3)
+        run.googleapis.com/secrets: "mongodb-uri:mongodb-uri:latest"
+    spec:
+      # Shared service account — create per README §2
+      serviceAccountName: tripsync-mcp-sa@PROJECT_ID.iam.gserviceaccount.com  # TODO(needs-user): set PROJECT_ID
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT_ID/tripsync/mcp:latest  # TODO(needs-user)
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MDB_MCP_ALLOWED_TOOLS
+              value: "find,insert-one,update-one,aggregate"
+            - name: MDB_MCP_TRANSPORT
+              value: "http"
+            - name: MDB_MCP_PORT
+              value: "8080"
+            - name: MDB_MCP_MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-uri      # Secret Manager secret name
+                  key: latest
+          resources:
+            limits:
+              cpu: "1"
+              memory: "256Mi"
+      # Only Vertex AI Agent Builder's service account should call this service
+      # (no --allow-unauthenticated; invoker binding set in README §4)
