@@ -34,3 +34,4 @@ One line per completed or blocked item.
 2026-05-21 02:14 — item 1: Flight decision type — mockSearchFlights (5 canned candidates) + test/flight-path.test.ts (3 cases: propose→vote→decide, decisions.flight set, proposal decided, history row) — typecheck/test green (21/21)
 2026-05-21 03:10 — item 2: Activity decision type — mockSearchActivities (5 canned candidates) + test/activity-path.test.ts (6 cases: two propose→vote→decide cycles, decisions.activities has 2 entries) — typecheck/test green (27/27)
 2026-05-21 — backlog exhausted, idle — all 11 items are [x]; no [ ] items remain
+2026-05-21 — backlog exhausted, idle — all 11 items are [x]; no [ ] items remain
