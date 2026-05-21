@@ -201,13 +201,45 @@ export async function searchFlights(ctx: ToolContext, raw: unknown): Promise<Pro
   return mockSearchFlights(args);
 }
 
+export function mockSearchActivities(args: SearchActivitiesArgs): ProposalOption[] {
+  const budget = args.max_price_krw ?? 100000;
+  const dest = args.destination;
+  return [
+    {
+      id: "act_teamlab",
+      label: "teamLab Borderless",
+      detail: { name: "teamLab Borderless", area: `${dest} — Odaiba`, price_krw: Math.min(32000, budget), duration_min: 120 },
+    },
+    {
+      id: "act_senso_ji",
+      label: "Senso-ji Temple Tour",
+      detail: { name: "Senso-ji Temple Tour", area: `${dest} — Asakusa`, price_krw: 0, duration_min: 90 },
+    },
+    {
+      id: "act_tsukiji",
+      label: "Tsukiji Outer Market Food Tour",
+      detail: { name: "Tsukiji Outer Market Food Tour", area: `${dest} — Tsukiji`, price_krw: Math.min(25000, budget), duration_min: 120 },
+    },
+    {
+      id: "act_robot_restaurant",
+      label: "Robot Restaurant Show",
+      detail: { name: "Robot Restaurant Show", area: `${dest} — Shinjuku`, price_krw: Math.min(75000, budget), duration_min: 90 },
+    },
+    {
+      id: "act_shibuya_sky",
+      label: "Shibuya Sky Observatory",
+      detail: { name: "Shibuya Sky Observatory", area: `${dest} — Shibuya`, price_krw: Math.min(23000, budget), duration_min: 60 },
+    },
+  ];
+}
+
 export async function searchActivities(
   ctx: ToolContext,
   raw: unknown,
 ): Promise<ProposalOption[]> {
   const args = SearchActivitiesArgs.parse(raw);
   if (ctx.searchActivities) return ctx.searchActivities(args);
-  return [];
+  return mockSearchActivities(args);
 }
 
 export async function insertProposal(
