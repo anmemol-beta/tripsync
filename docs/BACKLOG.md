@@ -10,7 +10,7 @@ Ordered task queue for the autonomous build loop. The loop does **one item per f
 
 ## Queue
 
-### 1. `[~]` Flight decision type
+### 1. `[x]` Flight decision type
 Add `flight` as a working decision kind end-to-end, mirroring the hotel pattern. `search_flights` already has a stub returning `[]` — give it a `mockSearchFlights` (canned 5 candidates, like `mockSearchHotels`). Wire the full propose → vote → decide → history flow.
 **Verify:** new `test/flight-path.test.ts` passes — propose flights → 3 votes → decide → `trips.decisions.flight` set, proposal `decided`, history row exists. `pnpm typecheck` + `pnpm test` green.
 
@@ -58,6 +58,7 @@ Add `packages/schema/src/indexes.ts` (or a setup script) that declares indices �
 
 ## Done log
 
+- **2026-05-21** Item 1: Flight decision type — `mockSearchFlights` (5 canned candidates) added to `runtime.ts`; `searchFlights` now uses it by default; `test/flight-path.test.ts` (3 cases: propose flights, 3 votes, decide → `decisions.flight` set, proposal decided, history row). 21/21 tests green.
 - **2026-05-19** Item 3: Edge-case test suite — `test/edge-cases.test.ts` (4 cases: tie vote, quorum not met, re-vote overwrites, duplicate open proposal rejected). Also replaced `MongoMemoryServer` with in-memory mock in `happy-path.test.ts` to unblock all tests. 7/7 tests green.
 - **2026-05-19** Item 4: find_trip history read-back — added `get_trip_history` tool to `TOOL_NAMES`/`TOOL_SCHEMAS`/`TOOLS`, `test/trip-history.test.ts` (3 cases: decision_made row returned, limit respected, empty for unknown trip). 10/10 tests green.
 - **2026-05-19** Item 5: HITL ambiguous-ask clarifying question — `test/ambiguous-ask.test.ts` (1 case: ambiguous hotel ask → MockGeminiClient returns text question, no search_* or insert_proposal calls, reply contains `?`). 11/11 tests green.

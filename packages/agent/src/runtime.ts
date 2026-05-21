@@ -124,10 +124,81 @@ export async function searchHotels(ctx: ToolContext, raw: unknown): Promise<Prop
   return mockSearchHotels(args);
 }
 
+export function mockSearchFlights(args: SearchFlightsArgs): ProposalOption[] {
+  const budget = args.max_price_krw ?? 800000;
+  return [
+    {
+      id: "f_ke_085",
+      label: "KE 085 ICN→NRT",
+      detail: {
+        carrier: "Korean Air",
+        flight_number: "KE 085",
+        depart_airport: args.from,
+        arrive_airport: args.to,
+        depart_at: `${args.depart_date}T09:00:00+09:00`,
+        arrive_at: `${args.depart_date}T11:20:00+09:00`,
+        price_krw: Math.min(320000, budget),
+      },
+    },
+    {
+      id: "f_oz_101",
+      label: "OZ 101 ICN→NRT",
+      detail: {
+        carrier: "Asiana Airlines",
+        flight_number: "OZ 101",
+        depart_airport: args.from,
+        arrive_airport: args.to,
+        depart_at: `${args.depart_date}T07:30:00+09:00`,
+        arrive_at: `${args.depart_date}T09:45:00+09:00`,
+        price_krw: Math.min(298000, budget),
+      },
+    },
+    {
+      id: "f_7c_1001",
+      label: "7C 1001 ICN→NRT",
+      detail: {
+        carrier: "Jeju Air",
+        flight_number: "7C 1001",
+        depart_airport: args.from,
+        arrive_airport: args.to,
+        depart_at: `${args.depart_date}T13:00:00+09:00`,
+        arrive_at: `${args.depart_date}T15:15:00+09:00`,
+        price_krw: Math.min(189000, budget),
+      },
+    },
+    {
+      id: "f_lj_201",
+      label: "LJ 201 ICN→NRT",
+      detail: {
+        carrier: "Jin Air",
+        flight_number: "LJ 201",
+        depart_airport: args.from,
+        arrive_airport: args.to,
+        depart_at: `${args.depart_date}T16:30:00+09:00`,
+        arrive_at: `${args.depart_date}T18:45:00+09:00`,
+        price_krw: Math.min(195000, budget),
+      },
+    },
+    {
+      id: "f_tw_201",
+      label: "TW 201 ICN→NRT",
+      detail: {
+        carrier: "T'way Air",
+        flight_number: "TW 201",
+        depart_airport: args.from,
+        arrive_airport: args.to,
+        depart_at: `${args.depart_date}T11:00:00+09:00`,
+        arrive_at: `${args.depart_date}T13:20:00+09:00`,
+        price_krw: Math.min(210000, budget),
+      },
+    },
+  ];
+}
+
 export async function searchFlights(ctx: ToolContext, raw: unknown): Promise<ProposalOption[]> {
   const args = SearchFlightsArgs.parse(raw);
   if (ctx.searchFlights) return ctx.searchFlights(args);
-  return [];
+  return mockSearchFlights(args);
 }
 
 export async function searchActivities(
