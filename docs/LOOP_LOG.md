@@ -30,3 +30,4 @@ One line per completed or blocked item.
 2026-05-20 14:00 — backlog exhausted, idle — no [ ] items; items 1 and 2 still blocked on network policy (fastdl.mongodb.org); items 3-11 done
 2026-05-21 — backlog exhausted, idle — no [ ] items; items 1 and 2 still blocked on network policy (fastdl.mongodb.org); items 3-11 done
 2026-05-21 — backlog exhausted, idle — no [ ] items; items 1 and 2 still blocked on network policy (fastdl.mongodb.org); items 3-11 done
+2026-05-21 — unblocking items 1 and 2: test/utils/memdb.ts (in-memory mock introduced in item 3) eliminates the mongodb-memory-server dependency entirely; fastdl.mongodb.org access no longer required; new tests will use createMemDb() like items 3-11; claiming item 1

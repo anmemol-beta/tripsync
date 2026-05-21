@@ -10,11 +10,11 @@ Ordered task queue for the autonomous build loop. The loop does **one item per f
 
 ## Queue
 
-### 1. `[blocked: pnpm test fails — network policy blocks fastdl.mongodb.org so mongodb-memory-server cannot download its binary; needs human to provide mongod or allow the download URL]` Flight decision type
+### 1. `[~]` Flight decision type
 Add `flight` as a working decision kind end-to-end, mirroring the hotel pattern. `search_flights` already has a stub returning `[]` — give it a `mockSearchFlights` (canned 5 candidates, like `mockSearchHotels`). Wire the full propose → vote → decide → history flow.
 **Verify:** new `test/flight-path.test.ts` passes — propose flights → 3 votes → decide → `trips.decisions.flight` set, proposal `decided`, history row exists. `pnpm typecheck` + `pnpm test` green.
 
-### 2. `[blocked: pnpm test fails — same MongoDB binary download issue as item 1; fastdl.mongodb.org blocked by network policy]` Activity decision type
+### 2. `[ ]` Activity decision type
 Add `activity` as a working decision kind. Note: `decisions.activities` is an **array** — `update_trip_decision` already `$push`es for `kind:"activity"`. Give `search_activities` a `mockSearchActivities`. The flow allows multiple activity decisions on one trip.
 **Verify:** new `test/activity-path.test.ts` — two separate activity proposals both decided, `trips.decisions.activities` has 2 entries. Green typecheck + test.
 
