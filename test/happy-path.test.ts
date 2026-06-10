@@ -6,6 +6,7 @@ import {
   type HistoryDoc,
   type ProposalDoc,
   type TripDoc,
+  type VideoJobDoc,
   type VoteDoc,
 } from "@tripsync/schema";
 import { BOSTON_CREW_TRIP_ID, seedBostonCrew } from "@tripsync/seed";
@@ -238,5 +239,157 @@ describe("happy path: hotel proposal -> votes -> decision", () => {
       .toArray();
     expect(history).toHaveLength(1);
     expect(history[0]?.payload).toMatchObject({ kind: "hotel", option_id: "h_shibuya_excel" });
+  });
+
+  it("turn 3: agent creates a travel video brief", async () => {
+    const gemini = new MockGeminiClient([
+      {
+        kind: "tool_calls",
+        calls: [{ name: "find_trip", args: { trip_id: BOSTON_CREW_TRIP_ID } }],
+      },
+      {
+        kind: "tool_calls",
+        calls: [
+          {
+            name: "create_travel_video",
+            args: {
+              trip_id: BOSTON_CREW_TRIP_ID,
+              requested_by: "seo",
+              duration_seconds: 60,
+              narrative: "Boston Crew가 도쿄 숙소를 투표로 정하고 여행을 시작하는 세로 영상",
+              scenes: [
+                {
+                  title: "Tokyo plan opens",
+                  source: "message",
+                  prompt: "친구들이 도쿄 여행 날짜를 확정하는 채팅 말풍선",
+                  duration_seconds: 12,
+                  asset_refs: ["msg_001", "msg_002", "msg_003"],
+                },
+                {
+                  title: "Hotel vote",
+                  source: "decision",
+                  prompt: "시부야 호텔 후보와 2대1 투표 결과를 빠르게 보여주는 장면",
+                  duration_seconds: 24,
+                  asset_refs: ["h_shibuya_excel"],
+                },
+                {
+                  title: "Ready for Tokyo",
+                  source: "agent_memory",
+                  prompt: "결정된 숙소를 중심으로 도쿄 여행이 시작되는 엔딩 카드",
+                  duration_seconds: 24,
+                  asset_refs: [BOSTON_CREW_TRIP_ID],
+                },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        kind: "tool_calls",
+        calls: [
+          {
+            name: "append_history",
+            args: {
+              trip_id: BOSTON_CREW_TRIP_ID,
+              event_type: "video_job_created",
+              actor: "agent",
+              payload: { duration_seconds: 60 },
+            },
+          },
+        ],
+      },
+      { kind: "text", text: "60초 세로 여행영상 브리프를 만들어뒀어요." },
+    ]);
+
+    const trace = await runTurn({
+      db,
+      gemini,
+      tripId: BOSTON_CREW_TRIP_ID,
+      author: "seo",
+      userText: "여행영상 만들어줘",
+    });
+
+    expect(trace.calls.map((c) => c.name)).toEqual([
+      "find_trip",
+      "create_travel_video",
+      "append_history",
+    ]);
+
+    const jobs = await db
+      .collection<VideoJobDoc>(COLLECTIONS.videoJobs)
+      .find({ trip_id: BOSTON_CREW_TRIP_ID })
+      .toArray();
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.status).toBe("brief_ready");
+    expect(jobs[0]?.format).toBe("vertical_9_16");
+    expect(jobs[0]?.duration_seconds).toBe(60);
+    expect(jobs[0]?.scenes).toHaveLength(3);
+
+    const history = await db
+      .collection<HistoryDoc>(COLLECTIONS.history)
+      .find({ trip_id: BOSTON_CREW_TRIP_ID, event_type: "video_job_created" })
+      .toArray();
+    expect(history).toHaveLength(1);
+  });
+
+  it("retrieves rated memories before preference-based recommendations", async () => {
+    const gemini = new MockGeminiClient([
+      {
+        kind: "tool_calls",
+        calls: [{ name: "find_trip", args: { trip_id: BOSTON_CREW_TRIP_ID } }],
+      },
+      {
+        kind: "tool_calls",
+        calls: [
+          {
+            name: "search_semantic_memories",
+            args: {
+              trip_id: BOSTON_CREW_TRIP_ID,
+              query: "quiet Tokyo route for cinematic video",
+              rating_min: 4,
+              limit: 3,
+            },
+          },
+        ],
+      },
+      { kind: "text", text: "평점 높은 조용한 영상 루트를 기준으로 추천할게요." },
+    ]);
+
+    const trace = await runTurn({
+      db,
+      gemini,
+      tripId: BOSTON_CREW_TRIP_ID,
+      author: "seo",
+      userText: "과거에 좋았던 취향 기반으로 조용한 영상 루트 추천해줘",
+      ctx: {
+        searchSemanticMemories: async () => [
+          {
+            _id: "mem_test_1",
+            trip_id: BOSTON_CREW_TRIP_ID,
+            user_handle: "seo",
+            title: "Quiet Yoyogi morning walk",
+            memory_text: "Rated 5. Quiet morning walk, good cinematic clips.",
+            rating: 5,
+            tags: ["quiet", "cinematic"],
+            location: "Yoyogi Park, Tokyo",
+            companions: ["seo", "jamie"],
+            media_refs: ["asset_yoyogi_morning_01"],
+            embedding_model: "test",
+            created_at: "2026-05-01T12:00:00.000Z",
+            score: 0.9,
+          },
+        ],
+      },
+    });
+
+    expect(trace.calls.map((c) => c.name)).toEqual([
+      "find_trip",
+      "search_semantic_memories",
+    ]);
+    expect(trace.steps).toContainEqual({
+      name: "search_semantic_memories",
+      status: "completed",
+      summary: "1 rated memories retrieved",
+    });
   });
 });

@@ -8,10 +8,10 @@ How the pieces fit. One happy-path sequence diagram, one component diagram, one 
 
 ```
 +--------------------------+        +-----------------------+
-|  apps/web (Next.js)      |  HTTPS |  apps/api (Hono)      |
+|  apps/web (React/Vite)   |  HTTPS |  apps/api (Hono)      |
 |  - chat room UI          | -----> |  - POST /chat         |
 |  - vote buttons          | <----- |  - POST /vote         |
-|  - mobile-first          |        |  - GET  /trip/:id     |
+|  - video job status      |        |  - GET  /trip/:id/state |
 +--------------------------+        +-----------+-----------+
                                                 |
                                                 | calls
@@ -98,12 +98,17 @@ alice posts "결정해줘"  -> agent loop
   -> update_trip ($set hotel=winner)
   -> append_history (insert event)
   -> agent text: "시부야 그란벨로 결정됐어요."
+seo taps "Create travel video" -> agent loop
+  -> find_trip
+  -> create_travel_video (insert video_jobs brief)
+  -> append_history
+  -> agent text: "영상 브리프 만들어뒀어요."
 ```
 
 ## 3. Why each box is here
 
 - **apps/web**: thin chat room. We do not put product logic in the browser; the browser is a view over agent state.
-- **apps/api**: thin HTTP shim. Three endpoints (`/chat`, `/vote`, `/trip/:id`). Forwards to the agent loop, returns the agent's reply.
+- **apps/api**: thin HTTP shim. Core endpoints (`/chat`, `/vote`, `/trip/:id/state`). Forwards to the agent loop, returns the agent's reply and state.
 - **packages/agent**: the brain. Holds the system prompt, the Zod tool schemas, the loop that drives Gemini's function-call protocol. Has a `GeminiClient` interface so we swap real-vs-mock.
 - **packages/schema**: Zod schemas for every MongoDB collection. `z.infer` gives us TypeScript types. Validation runs on every write.
 - **packages/seed**: deterministic Boston Crew fixture. Loadable into in-memory MongoDB for the happy-path test and into a real Atlas cluster for the demo.
@@ -118,13 +123,13 @@ alice posts "결정해줘"  -> agent loop
 
 | Real thing | Tonight's stand-in |
 |---|---|
-| Gemini 3 API | `MockGeminiClient` driven by a scripted tool-call plan. Same interface as the real client. |
+| Gemini 3 API in tests | `MockGeminiClient` driven by a scripted tool-call plan. Same interface as the real client. |
 | MongoDB Atlas | `mongodb-memory-server` for tests; local Docker mongod for dev. |
 | Vertex AI Agent Builder hosting | Local Node process. Deploy story is documented in `docs/AGENT_DESIGN.md` §Deployment. |
 | External hotel search | Canned 5-card response in `packages/agent/src/tools/search_hotels.ts`. |
 
-Each fake is behind an interface so swap-in for the real key is a one-file change. `TODO(real-key)` markers flag the swap points.
+Mocking is for tests only. The local server defaults to `GoogleGeminiClient` and fails fast without `GEMINI_API_KEY` unless `AGENT_PROVIDER=mock` is explicitly set.
 
 ## 6. Out-of-scope for this diagram
 
-Auth, photo/EXIF, recap-video, push notifications, payment. See `LOOP_BRIEF.md` §2.5.
+Auth, production-grade video rendering, push notifications, payment. The recap-video brief/job is in scope and persisted in MongoDB.

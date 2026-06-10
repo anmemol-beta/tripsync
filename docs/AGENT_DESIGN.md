@@ -27,6 +27,10 @@ Hard rules:
 5. Never call external booking / payment tools. There are none. If asked to book, explain that
    the group needs to do that off-platform and say which option they chose.
 6. Every state-changing tool call must be followed by append_history with the appropriate event_type.
+7. The final product artifact is a 9:16 travel recap video. When the group asks for a recap,
+   call create_travel_video with concrete scenes and store the job before replying.
+8. When the user asks for recommendations based on taste, crowd level, mood, or video direction,
+   call search_semantic_memories first so high-rated past memories shape the answer.
 
 Output format:
 - For pure conversation: short paragraph.
@@ -41,9 +45,9 @@ When uncertain: ask one clarifying question instead of guessing. Do not call too
 
 ## 2. Tool list (matches `MCP_INTEGRATION.md` §1)
 
-`find_trip`, `list_members`, `search_hotels`, `search_flights`, `search_activities`, `insert_proposal`, `append_vote`, `tally_votes`, `update_trip`, `append_history`.
+`find_trip`, `list_members`, `search_hotels`, `search_flights`, `search_activities`, `search_semantic_memories`, `insert_proposal`, `append_vote`, `tally_votes`, `update_trip_decision`, `append_history`, `create_travel_video`.
 
-Each tool is registered with a Zod schema. The runtime converts Zod schemas to Gemini-compatible JSON schemas via `zod-to-json-schema`. Function-call `id` round-tripping (Gemini 3 requirement) is handled in `packages/agent/src/loop.ts`.
+Each tool is registered with a Zod schema. The real Gemini client exposes the domain tool names and the runtime validates every call before touching MongoDB. Function-call `id` round-tripping is handled in `packages/agent/src/loop.ts`.
 
 ---
 
@@ -65,7 +69,8 @@ else:
 Per-tool policy is enforced inside the tool implementation, not relied on as prompt-only:
 
 - `insert_proposal` rejects if an open proposal of the same `kind` already exists for `trip_id`.
-- `update_trip` rejects writes to `decisions.<kind>` when no closed proposal supports the value.
+- `update_trip_decision` writes only a winner that exists in the source proposal.
+- `create_travel_video` inserts a `video_jobs` brief with vertical 9:16 scenes; the render adapter updates it later.
 - `append_vote` upserts on (`proposal_id`, `voter`) — one vote per voter per proposal.
 - `tally_votes` returns `winner_option_id = null` on ties; the agent must reply with "tie, please re-vote."
 
@@ -103,11 +108,11 @@ type MockPlan =
   | { type: "text"; content: string }[];
 ```
 
-For the happy-path test we pre-script the agent's responses:
+For deterministic tests we pre-script the agent's responses:
 - Turn 1 (alice's hotel request) → [find_trip, search_hotels, insert_proposal, text("5개 후보...")]
 - Turn 2 (after bob votes, alice says "결정") → [find_trip, tally_votes, update_trip, append_history, text("결정됐어요...")]
 
-This isolates the test from the LLM's stochasticity while still exercising the tool runtime, the Zod validators, and the MongoDB schema integrations end-to-end. Swapping in the real client is a one-file change documented in `docs/ARCHITECTURE.md`.
+This isolates tests from the LLM's stochasticity while still exercising the tool runtime, the Zod validators, and the MongoDB schema integrations end-to-end. Development runs should use the real client with `GEMINI_API_KEY`.
 
 ---
 

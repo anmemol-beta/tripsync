@@ -38,13 +38,17 @@ New `test/edge-cases.test.ts` covering the policy in `AGENT_DESIGN.md` §3: (a) 
 `MILESTONES.md` Week 2 Day 5. Add `GET /trace/:trip_id` to `apps/api` returning the agent's tool calls grouped by turn (read from `messages` + a per-turn trace, or persist traces). Render it in `apps/web` as a side panel — the demo (`DEMO_SCENARIO.md`) leans on showing the tool trace live.
 **Verify:** endpoint returns structured trace JSON; a test hits it after a happy-path turn. Web renders it (manual note in LOOP_LOG if UI can't be auto-verified). Green typecheck + test.
 
-### 8. `[ ]` Next.js frontend upgrade
-`apps/web` is a single `public/index.html` today. Upgrade to Next.js (App Router) per `MILESTONES.md` Week 3 — proper components for the chat thread, message bubble, vote buttons, trace panel. Keep it mobile-first. Do not add features beyond what the HTML stub already does plus the trace panel from item 7.
+### 8. `[x]` React mobile frontend baseline
+`apps/web` is a Vite React app, not a single static HTML file. It renders the phone-first agent surface: trip decisions, open proposal voting, chat, tool trace, and recap-video job status.
 **Verify:** `pnpm --filter @tripsync/web build` succeeds. `pnpm typecheck` green. No new `any`.
 
-### 9. `[ ]` VertexGeminiClient (write-only, untested)
-Write `VertexGeminiClient` implementing the `GeminiClient` interface against Vertex AI's `generateContent` (Gemini 3, function calling, per-call `id` round-trip per `RESEARCH_NOTES.md` §3). Cannot be tested without `GOOGLE_AI_API_KEY` — mark `TODO(needs-user)` on the live call path. `MockGeminiClient` stays the default for tests.
-**Verify:** file compiles (`pnpm typecheck` green), `GeminiClient` interface unchanged so the mock still satisfies it, all existing tests still green.
+### 9. `[~]` Live Gemini client + real interaction loop
+`GoogleGeminiClient` implements the `GeminiClient` interface against `generateContent` with function calling. Mock stays for tests only. Local server defaults to `AGENT_PROVIDER=gemini` and requires `GEMINI_API_KEY`.
+**Verify:** file compiles, mock tests stay green, and a real dev run with Atlas MongoDB + Gemini key changes MongoDB collections from a live chat turn.
+
+### 9b. `[ ]` Travel video render adapter
+`create_travel_video` now persists the concrete video brief/job. Add the render adapter after picking the vendor path (Creatomate/Remotion/Vertex media pipeline). The UI and MongoDB job model are already built around vertical 9:16.
+**Verify:** a real render job moves `video_jobs.status` from `brief_ready` → `rendering` → `ready` and stores `output_url`.
 
 ### 10. `[ ]` mongodb-mcp-server self-host config
 Per `DECISIONS.md` #6 (self-hosted MCP transport). Add a `deploy/mcp/` folder: a `Dockerfile` for `mongodb-js/mongodb-mcp-server`, a Cloud Run service definition, and a `deploy/mcp/README.md` with the deploy steps. Do NOT deploy (needs GCP). Allow only `find`/`insert-one`/`update-one`/`aggregate` per `MCP_INTEGRATION.md` §3.

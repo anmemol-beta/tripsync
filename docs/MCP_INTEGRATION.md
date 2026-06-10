@@ -20,13 +20,15 @@ This split exists because:
 | `search_hotels` | External-search proxy. **Mocked tonight.** Returns 5 candidate hotels. | none (external) |
 | `search_flights` | External-search proxy. Mocked. | none (external) |
 | `search_activities` | External-search proxy. Mocked. | none (external) |
+| `search_semantic_memories` | Retrieve high-rated similar trip memories for recommendations and video direction. | `aggregate` with `$vectorSearch` on `trip_memories` |
 | `insert_proposal` | Persist a new proposal (hotel / flight / activity) with `options[]`. | `insert-one` on `proposals` |
 | `append_vote` | Record one member's vote for one proposal option. | `insert-one` on `votes` |
 | `tally_votes` | Aggregate vote counts per option for a proposal. | `aggregate` on `votes` |
-| `update_trip` | `$set` chosen winner onto `trips.decisions.<kind>`. | `update-one` on `trips` |
+| `update_trip_decision` | `$set` chosen winner onto `trips.decisions.<kind>`. | `update-one` on `trips` |
 | `append_history` | Append a structured event to the trip change-log. | `insert-one` on `history` |
+| `create_travel_video` | Persist the 9:16 recap-video brief/job with concrete scenes. | `insert-one` on `video_jobs` |
 
-Total: 10 tools. The agent's system prompt names all 10 and gives one example per category.
+Total: 12 tools. The agent's system prompt names all 12 and gives one example per category.
 
 ---
 
@@ -161,17 +163,15 @@ Idempotent on (`proposal_id`, `voter`) — a second vote from the same voter ove
 
 Backed by `aggregate` with `$group` on `option_id` then a `$lookup` on `members` for quorum.
 
-### `update_trip`
+### `update_trip_decision`
 
 ```ts
 // args
 {
   trip_id: string;
-  set: {
-    "decisions.hotel"?: HotelDecision;
-    "decisions.flight"?: FlightDecision;
-    "decisions.activities"?: ActivityDecision[];
-  };
+  proposal_id: string;
+  kind: "hotel" | "flight" | "activity";
+  winner_option_id: string;
 }
 
 // returns
@@ -184,7 +184,7 @@ Backed by `aggregate` with `$group` on `option_id` then a `$lookup` on `members`
 // args
 {
   trip_id: string;
-  event_type: "proposal_opened" | "vote_cast" | "decision_made" | "decision_changed" | "agent_note";
+  event_type: "proposal_opened" | "vote_cast" | "decision_made" | "decision_changed" | "video_job_created" | "agent_note";
   actor: string;              // "alice" or "agent"
   payload: Record<string, unknown>;
 }
@@ -194,6 +194,30 @@ Backed by `aggregate` with `$group` on `option_id` then a `$lookup` on `members`
 ```
 
 History rows are append-only. The agent reads back via `find_trip` (which $lookup-joins the latest N history entries) — that read pattern is also unit-tested.
+
+### `create_travel_video`
+
+```ts
+// args
+{
+  trip_id: string;
+  requested_by: string;
+  duration_seconds: 60 | 180 | 300;
+  narrative: string;
+  scenes: Array<{
+    title: string;
+    source: "decision" | "message" | "photo" | "agent_memory";
+    prompt: string;
+    duration_seconds: number;
+    asset_refs: string[];
+  }>;
+}
+
+// returns
+{ video_job_id: string; status: "brief_ready" | "rendering" | "ready" | "failed" }
+```
+
+The render adapter is intentionally separate. This tool proves the agent can transform MongoDB trip memory into a concrete video plan and persist it for the production renderer.
 
 ---
 

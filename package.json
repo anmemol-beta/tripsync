@@ -9,9 +9,12 @@
     "node": ">=20"
   },
   "scripts": {
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -b && pnpm --filter @tripsync/web typecheck",
     "test": "vitest run",
-    "test:happy-path": "vitest run test/happy-path.test.ts"
+    "test:happy-path": "vitest run test/happy-path.test.ts",
+    "smoke:mcp": "node scripts/mcp-smoke.mjs",
+    "seed:memories": "node scripts/seed-vector-memories.mjs",
+    "smoke:vector": "node scripts/vector-smoke.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
@@ -23,6 +26,7 @@
   "dependencies": {
     "@tripsync/agent": "workspace:*",
     "@tripsync/schema": "workspace:*",
-    "@tripsync/seed": "workspace:*"
+    "@tripsync/seed": "workspace:*",
+    "google-auth-library": "^10.5.0"
   }
 }

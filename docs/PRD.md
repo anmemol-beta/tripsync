@@ -6,7 +6,7 @@
 
 ## 1. One-liner
 
-**Tripsync is a group-travel planning agent that lives inside a chat your friends already use, with MongoDB as its shared memory.**
+**Trippo Agent is a mobile-first group-travel agent that plans with your friends and turns the trip into a vertical recap video, with MongoDB as its shared memory.**
 
 Two to five friends talk to one agent. The agent searches, proposes, runs votes, persists decisions, and keeps everyone in sync — across turns, across sessions, across humans.
 
@@ -28,9 +28,10 @@ A web app where 2–5 friends form a trip group. Inside the group room there is 
 
 1. Receives natural-language messages from any member.
 2. Plans multi-step actions: search hotels → propose → wait for votes → tally → save winner → notify group.
-3. Persists everything to MongoDB: the trip, members, messages, proposals, votes, decisions, change history.
+3. Persists everything to MongoDB: the trip, members, messages, proposals, votes, decisions, change history, and recap-video jobs.
 4. Reasons over prior turns by querying its own MongoDB memory ("show me what we already agreed on for dinner").
 5. Refuses to auto-book or auto-commit until enough humans have voted.
+6. Produces the final trip artifact: a 9:16 travel-video brief that can be rendered into a shareable recap.
 
 The agent is the product. Chat is its UI. Multi-step tool calls are the value.
 
@@ -60,14 +61,15 @@ MongoDB earns its keep as the live, queryable, multi-writer source of truth for 
 
 In:
 - One trip group, 2–5 mock members.
-- Happy path: hotel proposal → 3-way vote → decision persisted → change-log entry.
+- Happy path: hotel proposal → 3-way vote → decision persisted → change-log entry → recap-video brief persisted.
 - Two more decision types (flight, activity) following the same pattern.
-- Web chat UI, mobile-first.
-- Mocked external search where API keys aren't available.
+- React web UI, phone-first. Desktop is only a preview shell around the phone surface.
+- Real Gemini/MongoDB interaction during development. Mock Gemini remains for deterministic tests only.
+- Mocked external search where API keys aren't available, but the agent loop, MongoDB writes, and video-job persistence must run for real.
 
 Out:
 - Real bookings / payments.
-- Photo / EXIF / recap-video (this was the Remy-era product's surface; Tripsync is agent-first).
+- Full production video rendering if a render vendor key is not ready. The hackathon MVP must still create and persist the video brief/job as a core flow.
 - Auth — mock user IDs are enough.
 - Push notifications.
 
@@ -82,8 +84,8 @@ The hackathon grades on (per Devpost rules + observed Gemini 3 / Agent Builder m
 | **MongoDB track relevance** | The product's defining property is shared multi-writer state. MongoDB is not a config detail — it is the substrate. |
 | **Novel use case** | Group-collaborative agents with persistent shared memory are an unexplored category. The known agent demos are solo. |
 | **Production-shape** | Typed schemas, validated tool args, MongoDB indices, deterministic happy-path test runnable in CI, no `any`, clean commit history. |
-| **3-min demo** | `docs/DEMO_SCENARIO.md` scripts a watchable 3-min walkthrough of the Boston Crew trip. |
+| **3-min demo** | `docs/DEMO_SCENARIO.md` scripts a watchable 3-min walkthrough ending with the travel-video brief, not just a planning decision. |
 
 ## 8. Success metric for the overnight loop
 
-The integration test in §2.3 of `LOOP_BRIEF.md` passes against an in-memory MongoDB and a mocked Gemini client, asserting the final state of `trips`, `proposals`, `votes`, `decisions`, and `history` collections.
+The local build passes deterministic tests, and the development loop also runs against a real MongoDB URI plus Gemini credentials. The minimum visible proof is: `trips`, `proposals`, `votes`, `history`, and `video_jobs` all change from agent/tool actions during a real interaction.

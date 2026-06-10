@@ -32,6 +32,14 @@ export const SearchActivitiesArgs = z.object({
 });
 export type SearchActivitiesArgs = z.infer<typeof SearchActivitiesArgs>;
 
+export const SearchSemanticMemoriesArgs = z.object({
+  trip_id: z.string(),
+  query: z.string(),
+  limit: z.number().int().positive().max(10).default(5),
+  rating_min: z.number().int().min(1).max(5).default(4),
+});
+export type SearchSemanticMemoriesArgs = z.infer<typeof SearchSemanticMemoriesArgs>;
+
 export const InsertProposalArgs = z.object({
   trip_id: z.string(),
   proposed_by: z.string(),
@@ -66,6 +74,7 @@ export const AppendHistoryArgs = z.object({
     "vote_cast",
     "decision_made",
     "decision_changed",
+    "video_job_created",
     "agent_note",
   ]),
   actor: z.string(),
@@ -73,17 +82,38 @@ export const AppendHistoryArgs = z.object({
 });
 export type AppendHistoryArgs = z.infer<typeof AppendHistoryArgs>;
 
+export const CreateTravelVideoArgs = z.object({
+  trip_id: z.string(),
+  requested_by: z.string(),
+  duration_seconds: z.union([z.literal(60), z.literal(180), z.literal(300)]).default(60),
+  narrative: z.string(),
+  scenes: z
+    .array(
+      z.object({
+        title: z.string(),
+        source: z.enum(["decision", "message", "photo", "agent_memory"]),
+        prompt: z.string(),
+        duration_seconds: z.number().int().positive(),
+        asset_refs: z.array(z.string()).default([]),
+      }),
+    )
+    .min(1),
+});
+export type CreateTravelVideoArgs = z.infer<typeof CreateTravelVideoArgs>;
+
 export const TOOL_NAMES = [
   "find_trip",
   "list_members",
   "search_hotels",
   "search_flights",
   "search_activities",
+  "search_semantic_memories",
   "insert_proposal",
   "append_vote",
   "tally_votes",
   "update_trip_decision",
   "append_history",
+  "create_travel_video",
 ] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
@@ -93,9 +123,11 @@ export const TOOL_SCHEMAS = {
   search_hotels: SearchHotelsArgs,
   search_flights: SearchFlightsArgs,
   search_activities: SearchActivitiesArgs,
+  search_semantic_memories: SearchSemanticMemoriesArgs,
   insert_proposal: InsertProposalArgs,
   append_vote: AppendVoteArgs,
   tally_votes: TallyVotesArgs,
   update_trip_decision: UpdateTripDecisionArgs,
   append_history: AppendHistoryArgs,
+  create_travel_video: CreateTravelVideoArgs,
 } as const;

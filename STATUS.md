@@ -4,11 +4,20 @@ Last update: 2026-05-11 (overnight loop finished).
 
 ---
 
+## 2026-06-09 update
+
+- Added `trip_memories` as rated past-trip memory documents with Vertex embeddings.
+- Added `search_semantic_memories` as the agent tool for Atlas Vector Search retrieval.
+- Added `pnpm seed:memories` and `pnpm smoke:vector` for real Atlas persistence/search verification.
+- Mobile UI now has an agent activity timeline with running/completed/failed states and evidence summaries.
+
+---
+
 ## TL;DR
 
 All `LOOP_BRIEF.md` §2 success criteria are checked. `pnpm test:happy-path` exits 0 against in-memory MongoDB. Clean typecheck, no `any`, no committed secrets, 14 atomic commits.
 
-**Time-to-MVP estimate from this scaffold: ~5–7 working days.** The mocked seams (Gemini, hotel search, deploy) are each documented one-file changes; the longest pole is the live Vertex AI Agent Builder + MongoDB Atlas + Cloud Run wiring, which the `MILESTONES.md` Week 1 plan budgets at 5 days.
+**Current direction update:** Trippo Agent is now React/mobile-first, MongoDB-track-first, and recap-video-first. Mock Gemini is only for deterministic tests; real development runs must use Gemini credentials plus a real MongoDB URI so agent tool actions can be verified against persisted data.
 
 ---
 
@@ -27,7 +36,7 @@ All `LOOP_BRIEF.md` §2 success criteria are checked. `pnpm test:happy-path` exi
 
 ### §2.2 Scaffold
 - [x] `package.json` at root (pnpm workspace, Node ≥ 20, TS, vitest)
-- [x] `apps/web/` — minimal single-file chat UI (deliberately simple per Karpathy; upgrade to Next.js is Week 3 polish)
+- [x] `apps/web/` — Vite React mobile UI for chat, proposal voting, tool trace, and recap-video jobs
 - [x] `apps/api/` — Hono server with `POST /chat`, `POST /vote`, `GET /trip/:id`
 - [x] `packages/agent/` — Gemini interface (mockable), 10 tools, agent loop
 - [x] `packages/schema/` — Zod schemas + `z.infer<>` types for 6 collections
@@ -66,7 +75,7 @@ All `LOOP_BRIEF.md` §2 success criteria are checked. `pnpm test:happy-path` exi
 
 **API (`apps/api/`):** Hono `buildApp(deps)` factory + `server.ts` entry point that connects to MongoDB and starts on `PORT`.
 
-**Web (`apps/web/`):** single-file mobile-first chat UI in `public/index.html` that calls `POST /chat` and renders tool traces inline. Static Node server in `serve.mjs`.
+**Web (`apps/web/`):** Vite React mobile-first chat UI that calls `GET /trip/:id/state`, `POST /chat`, and `POST /vote`, then renders decisions, proposals, tool traces, and recap-video jobs.
 
 **Test (`test/happy-path.test.ts`):** spins up `mongodb-memory-server`, seeds Boston Crew, runs two agent turns + three vote writes, asserts final MongoDB state.
 
@@ -74,13 +83,13 @@ All `LOOP_BRIEF.md` §2 success criteria are checked. `pnpm test:happy-path` exi
 
 ## What's pending (Week 1+, not for tonight)
 
-- **Real Gemini 3 client** — `packages/agent/src/gemini.ts` has the `GeminiClient` interface; create `VertexGeminiClient` implementing `generate(input)` against Vertex AI's `generateContent` endpoint. Pipe Gemini 3's per-call `id` through the existing `FunctionCall.id` field (already wired).
+- **Real Gemini 3 client** — `GoogleGeminiClient` is wired behind `AGENT_PROVIDER=gemini`. It still needs a live credential run against Atlas to verify the exact function-calling payload shape end to end.
 - **Real Atlas wiring** — `apps/api/src/server.ts` already reads `MONGODB_URI`. Hand it a real connection string.
 - **Real Vertex AI Agent Builder hosting** — Register the agent with the system prompt + tool schemas (already documented in `docs/AGENT_DESIGN.md` §7). Point at a hosted `mongodb-mcp-server` (Atlas-connected) for the production MCP transport.
 - **Real external search** — `search_hotels` returns canned data when `ctx.searchHotels` is unset. Swap to Maps Grounding (Gemini 3 built-in) or Google Places. `search_flights` and `search_activities` are stubs returning `[]` — same pattern.
-- **Next.js upgrade** — `apps/web/` is a single HTML page tonight to keep moving fast. Week 3 polishes it into a Next.js App Router app with proper components.
+- **React polish** — keep the Vite React app narrow and phone-first. Add only what the 3-minute demo needs.
 - **Auth** — Mock user handles only. Real auth is post-MVP.
-- **Photo/EXIF/recap** — Explicitly out of scope per LOOP_BRIEF §2.5. The OLD Trippo (`~/Desktop/travel/travel-summary-app/`) has the data shapes; port in Week 3 if time.
+- **Travel video rendering** — the agent can now persist a `video_jobs` brief. The next adapter should turn that brief into a real 9:16 MP4 and update `output_url`.
 
 ---
 

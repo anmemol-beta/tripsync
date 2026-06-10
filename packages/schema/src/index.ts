@@ -105,6 +105,7 @@ export const HistoryEventType = z.enum([
   "vote_cast",
   "decision_made",
   "decision_changed",
+  "video_job_created",
   "agent_note",
 ]);
 export type HistoryEventType = z.infer<typeof HistoryEventType>;
@@ -119,6 +120,50 @@ export const HistoryDoc = z.object({
 });
 export type HistoryDoc = z.infer<typeof HistoryDoc>;
 
+export const VideoScene = z.object({
+  id: z.string(),
+  title: z.string(),
+  source: z.enum(["decision", "message", "photo", "agent_memory"]),
+  prompt: z.string(),
+  duration_seconds: z.number().int().positive(),
+  asset_refs: z.array(z.string()).default([]),
+});
+export type VideoScene = z.infer<typeof VideoScene>;
+
+export const VideoJobDoc = z.object({
+  _id: z.string(),
+  trip_id: z.string(),
+  requested_by: z.string(),
+  status: z.enum(["brief_ready", "rendering", "ready", "failed"]),
+  format: z.enum(["vertical_9_16"]),
+  duration_seconds: z.union([z.literal(60), z.literal(180), z.literal(300)]),
+  title: z.string(),
+  narrative: z.string(),
+  scenes: z.array(VideoScene).min(1),
+  output_url: z.string().url().nullable(),
+  failure_reason: z.string().nullable(),
+  created_at: ISODateTime,
+  updated_at: ISODateTime,
+});
+export type VideoJobDoc = z.infer<typeof VideoJobDoc>;
+
+export const TripMemoryDoc = z.object({
+  _id: z.string(),
+  trip_id: z.string(),
+  user_handle: z.string(),
+  title: z.string(),
+  memory_text: z.string(),
+  rating: z.number().int().min(1).max(5),
+  tags: z.array(z.string()),
+  location: z.string(),
+  companions: z.array(z.string()),
+  media_refs: z.array(z.string()),
+  embedding: z.array(z.number()),
+  embedding_model: z.string(),
+  created_at: ISODateTime,
+});
+export type TripMemoryDoc = z.infer<typeof TripMemoryDoc>;
+
 export const COLLECTIONS = {
   trips: "trips",
   members: "members",
@@ -126,6 +171,8 @@ export const COLLECTIONS = {
   proposals: "proposals",
   votes: "votes",
   history: "history",
+  videoJobs: "video_jobs",
+  tripMemories: "trip_memories",
 } as const;
 
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];
