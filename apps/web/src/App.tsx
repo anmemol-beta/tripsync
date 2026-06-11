@@ -357,10 +357,6 @@ function App() {
           </section>
         )}
 
-        {latestVideo?.output_url && hasPlayableVideo && (
-          <video className="recap-player" src={latestVideo.output_url} controls playsInline preload="metadata" />
-        )}
-
         <section className="artifact-rail" aria-label="Trippo artifacts">
           <ArtifactCard
             icon={<CalendarDays size={15} />}
@@ -395,6 +391,10 @@ function App() {
             detail={firstPhoto?.caption ?? "Used in recap"}
           />
         </section>
+
+        {latestVideo?.output_url && hasPlayableVideo && (
+          <video className="recap-player" src={latestVideo.output_url} controls playsInline preload="metadata" />
+        )}
 
         <section className="trace" aria-label="Agent activity">
           <div className="section-head">
