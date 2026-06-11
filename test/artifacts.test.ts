@@ -30,6 +30,13 @@ afterAll(async () => {
 });
 
 describe("trip artifacts", () => {
+  it("keeps seeded chat as realistic English trip conversation", () => {
+    const chatBody = bostonCrewFixture.messages.map((message) => message.body).join("\n");
+
+    expect(chatBody).not.toMatch(/\b(demo|prove|judges?)\b/i);
+    expect(chatBody).not.toMatch(/[가-힣]/);
+  });
+
   it("seeds itinerary, tickets, expenses, and photos into MongoDB", async () => {
     const [events, tickets, expenses, photos] = await Promise.all([
       db.collection<EventDoc>(COLLECTIONS.events).find({ trip_id: BOSTON_CREW_TRIP_ID }).toArray(),
