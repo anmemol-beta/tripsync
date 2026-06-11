@@ -13,6 +13,7 @@ import {
   Send,
   SlidersHorizontal,
   Sparkles,
+  Upload,
   X,
 } from "lucide-react";
 
@@ -105,6 +106,18 @@ type TripState = {
     caption: string | null;
     place_name: string | null;
   }>;
+  media_assets: Array<{
+    _id: string;
+    member_handle: string;
+    kind: "video";
+    original_name: string;
+    file_url: string;
+    duration_seconds: number | null;
+    trim_start_seconds: number;
+    trim_duration_seconds: number;
+    caption: string | null;
+    status: "uploaded" | "ready" | "failed";
+  }>;
   settlement: {
     transfers: Array<{ from: string; to: string; amount: number; currency: string }>;
     totals_by_currency: Array<{ currency: string; amount: number }>;
@@ -146,6 +159,7 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toolSteps, setToolSteps] = useState<ToolStep[]>([]);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [activeView, setActiveView] = useState<AppView>("trip");
   const [activeFeature, setActiveFeature] = useState<FeaturePanel>("plans");
   const [videoSelection, setVideoSelection] = useState<VideoSelection>({
@@ -221,8 +235,34 @@ function App() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = draft;
+    const file = uploadFile;
     setDraft("");
-    await sendText(text);
+    setUploadFile(null);
+    if (file) await uploadMedia(file, text);
+    else await sendText(text);
+  }
+
+  async function uploadMedia(file: File, caption: string) {
+    setBusy(true);
+    setError(null);
+    setToolSteps([{ name: "upload_video", status: "completed", summary: "saving video and selecting trim" }]);
+    try {
+      const form = new FormData();
+      form.set("file", file);
+      form.set("author", author);
+      if (caption.trim()) form.set("caption", caption.trim());
+      const res = await fetch(`${API_BASE}/trip/${TRIP_ID}/media`, {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) throw new Error(`upload failed: ${res.status}`);
+      await refresh();
+      setActiveView("video");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function vote(proposalId: string, optionId: string) {
@@ -476,6 +516,26 @@ function App() {
               />
             )}
 
+            {state.media_assets.length > 0 && (
+              <section className="clip-panel">
+                <div className="section-head">
+                  <Camera size={15} />
+                  <h2>Uploaded clips</h2>
+                </div>
+                <div className="clip-list">
+                  {state.media_assets.map((asset) => (
+                    <article key={asset._id}>
+                      <video src={asset.file_url} muted playsInline preload="metadata" />
+                      <div>
+                        <strong>{asset.caption || asset.original_name}</strong>
+                        <span>{memberLabel(state, asset.member_handle)} · trim {formatSeconds(asset.trim_start_seconds)} to {formatSeconds(asset.trim_start_seconds + asset.trim_duration_seconds)}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {latestVideo?.output_url && hasPlayableVideo && (
               <video className="recap-player" src={latestVideo.output_url} controls playsInline preload="metadata" />
             )}
@@ -541,13 +601,22 @@ function App() {
               ))}
             </section>
             <form className="composer inline-composer" onSubmit={handleSubmit}>
+              <label className={`attach-button ${uploadFile ? "has-file" : ""}`} title="Attach video">
+                <Upload size={17} />
+                <input
+                  type="file"
+                  accept="video/mp4,video/quicktime,video/webm,video/*"
+                  onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+                  disabled={busy}
+                />
+              </label>
               <input
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
-                placeholder="Ask the agent..."
+                placeholder={uploadFile ? uploadFile.name : "Ask the agent..."}
                 disabled={busy}
               />
-              <button disabled={busy || !draft.trim()} aria-label="Send" title="Send">
+              <button disabled={busy || (!draft.trim() && !uploadFile)} aria-label="Send" title="Send">
                 <Send size={18} />
               </button>
             </form>
@@ -632,6 +701,7 @@ function toolLabel(name: string): string {
     append_history: "Append history",
     create_travel_video: "Create video brief",
     render_video: "Render recap",
+    upload_video: "Upload video",
     waiting: "Waiting",
   };
   return labels[name] ?? name;
@@ -882,6 +952,10 @@ function money(amount: number, currency: string): string {
     currency,
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+function formatSeconds(value: number): string {
+  return `${Number(value.toFixed(1))}s`;
 }
 
 function voteCount(state: TripState, proposalId: string, optionId: string): number {

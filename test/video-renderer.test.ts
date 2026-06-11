@@ -1,7 +1,8 @@
+import { rm } from "node:fs/promises";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { MongoClient, type Db } from "mongodb";
-import { COLLECTIONS, type VideoJobDoc } from "@tripsync/schema";
+import { COLLECTIONS, type MediaAssetDoc, type MessageDoc, type VideoJobDoc } from "@tripsync/schema";
 import { MockGeminiClient } from "@tripsync/agent";
 import { BOSTON_CREW_TRIP_ID, seedBostonCrew } from "@tripsync/seed";
 import { buildApp } from "../apps/api/src/app.js";
@@ -28,6 +29,49 @@ afterAll(async () => {
 });
 
 describe("video job HTML fallback renderer", () => {
+  it("stores uploaded chat videos as media assets with an auto trim", async () => {
+    const app = buildApp({
+      db,
+      gemini: new MockGeminiClient([]),
+      publicBaseUrl: "http://test.local",
+      videoRenderMode: "html",
+    });
+    const form = new FormData();
+    form.set("author", "seo");
+    form.set("caption", "Haneda arrival clip");
+    form.set("file", new File([Buffer.from("placeholder")], "arrival.mp4", { type: "video/mp4" }));
+
+    const uploadRes = await app.request(`/trip/${BOSTON_CREW_TRIP_ID}/media`, {
+      method: "POST",
+      body: form,
+    });
+    expect(uploadRes.status).toBe(200);
+    const uploadBody = (await uploadRes.json()) as { media_asset: MediaAssetDoc };
+    expect(uploadBody.media_asset).toMatchObject({
+      trip_id: BOSTON_CREW_TRIP_ID,
+      member_handle: "seo",
+      kind: "video",
+      original_name: "arrival.mp4",
+      trim_start_seconds: 0,
+      status: "ready",
+    });
+    expect(uploadBody.media_asset.file_url).toBe(`http://test.local/uploads/${uploadBody.media_asset._id}.mp4`);
+
+    const persisted = await db
+      .collection<MediaAssetDoc>(COLLECTIONS.mediaAssets)
+      .findOne({ _id: uploadBody.media_asset._id });
+    expect(persisted?.caption).toBe("Haneda arrival clip");
+
+    const messages = await db
+      .collection<MessageDoc>(COLLECTIONS.messages)
+      .find({ _id: { $in: [`msg_${uploadBody.media_asset._id}`, `msg_${uploadBody.media_asset._id}_agent`] } })
+      .toArray();
+    expect(messages).toHaveLength(2);
+    expect(messages.map((message) => message.body).join("\n")).toContain("Added to the next recap render");
+
+    await rm(uploadBody.media_asset.file_path, { force: true });
+  });
+
   it("moves a brief_ready video job to ready and stores a preview URL", async () => {
     await insertVideoJob("video_test_ready", "brief_ready");
     const app = buildApp({

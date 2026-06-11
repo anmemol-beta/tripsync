@@ -1,6 +1,8 @@
-import { readFile, stat } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { Db } from "mongodb";
@@ -10,6 +12,7 @@ import {
   type EventDoc,
   type ExpenseDoc,
   type HistoryDoc,
+  type MediaAssetDoc,
   type MemberDoc,
   type MessageDoc,
   type PhotoDoc,
@@ -71,6 +74,8 @@ const RenderBody = z.object({
 
 const API_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SOUNDTRACK_PATH = path.join(API_ROOT, "assets/tripsync-music.mp3");
+const UPLOAD_DIR = path.join(API_ROOT, "uploads");
+const execFileAsync = promisify(execFile);
 
 export function buildApp(deps: AppDeps): Hono {
   const app = new Hono();
@@ -95,6 +100,81 @@ export function buildApp(deps: AppDeps): Hono {
         headers: { "content-type": "application/json" },
       });
     }
+  });
+
+  app.get("/uploads/:file", async (c) => {
+    const fileName = path.basename(c.req.param("file"));
+    const filePath = path.join(UPLOAD_DIR, fileName);
+    try {
+      const [bytes, fileStat] = await Promise.all([readFile(filePath), stat(filePath)]);
+      const contentType = mediaContentType(fileName);
+      return serveBytes(c.req.header("range"), { bytes, byteLength: fileStat.size }, contentType);
+    } catch {
+      return c.json({ error: "not_found" }, 404);
+    }
+  });
+
+  app.post("/trip/:id/media", async (c) => {
+    const tripId = c.req.param("id");
+    const form = await c.req.formData();
+    const file = form.get("file");
+    const author = String(form.get("author") ?? "");
+    const caption = String(form.get("caption") ?? "").trim();
+    if (!(file instanceof File)) return c.json({ error: "file_required" }, 400);
+    if (!author) return c.json({ error: "author_required" }, 400);
+    if (!file.type.startsWith("video/")) return c.json({ error: "video_required" }, 400);
+
+    const trip = await deps.db.collection<TripDoc>(COLLECTIONS.trips).findOne({ _id: tripId });
+    if (!trip) return c.json({ error: "not_found" }, 404);
+
+    await mkdir(UPLOAD_DIR, { recursive: true });
+    const now = new Date().toISOString();
+    const id = `media_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const extension = extensionForVideo(file.name, file.type);
+    const storedName = `${id}${extension}`;
+    const filePath = path.join(UPLOAD_DIR, storedName);
+    await writeFile(filePath, Buffer.from(await file.arrayBuffer()));
+
+    const duration = await probeDuration(filePath);
+    const trim = autoTrim(duration);
+    const publicBaseUrl = deps.publicBaseUrl ?? "http://localhost:4000";
+    const doc: MediaAssetDoc = {
+      _id: id,
+      trip_id: tripId,
+      member_handle: author,
+      kind: "video",
+      original_name: file.name || storedName,
+      mime_type: file.type || mediaContentType(storedName),
+      file_url: `${publicBaseUrl.replace(/\/+$/, "")}/uploads/${storedName}`,
+      file_path: filePath,
+      duration_seconds: duration,
+      trim_start_seconds: trim.start,
+      trim_duration_seconds: trim.duration,
+      caption: caption || null,
+      status: "ready",
+      created_at: now,
+      updated_at: now,
+    };
+
+    await deps.db.collection<MediaAssetDoc>(COLLECTIONS.mediaAssets).insertOne(doc);
+    await deps.db.collection<MessageDoc>(COLLECTIONS.messages).insertMany([
+      {
+        _id: `msg_${id}`,
+        trip_id: tripId,
+        author,
+        body: `Uploaded video: ${doc.original_name}\n1. Auto trim starts at ${formatSeconds(doc.trim_start_seconds)}\n2. Clip length ${formatSeconds(doc.trim_duration_seconds)}\n3. Added to the next recap render`,
+        created_at: now,
+      },
+      {
+        _id: `msg_${id}_agent`,
+        trip_id: tripId,
+        author: "agent",
+        body: `Video clip ready\n1. Source saved to trip media\n2. Best ${formatSeconds(doc.trim_duration_seconds)} section selected\n3. It will be mixed with photos, tickets, plans, split, and music`,
+        created_at: new Date(Date.now() + 1).toISOString(),
+      },
+    ]);
+
+    return c.json({ media_asset: doc });
   });
 
   app.post("/chat", async (c) => {
@@ -207,6 +287,7 @@ export function buildApp(deps: AppDeps): Hono {
       tickets,
       expenses,
       photos,
+      mediaAssets,
       videoJobs,
       tripMemories,
     ] =
@@ -254,6 +335,11 @@ export function buildApp(deps: AppDeps): Hono {
           .sort({ taken_at: 1 })
           .toArray(),
         deps.db
+          .collection<MediaAssetDoc>(COLLECTIONS.mediaAssets)
+          .find({ trip_id: tripId })
+          .sort({ created_at: -1 })
+          .toArray(),
+        deps.db
           .collection<VideoJobDoc>(COLLECTIONS.videoJobs)
           .find({ trip_id: tripId })
           .sort({ created_at: -1 })
@@ -278,6 +364,7 @@ export function buildApp(deps: AppDeps): Hono {
       tickets,
       expenses,
       photos,
+      media_assets: mediaAssets,
       settlement: summarizeSettlement(expenses),
       video_jobs: videoJobs,
       trip_memories: tripMemories,
@@ -291,6 +378,14 @@ function serveVideoBytes(
   range: string | undefined,
   video: { bytes: Buffer; byteLength: number },
   contentType: "video/mp4" | "video/webm",
+): Response {
+  return serveBytes(range, video, contentType);
+}
+
+function serveBytes(
+  range: string | undefined,
+  video: { bytes: Buffer; byteLength: number },
+  contentType: string,
 ): Response {
   if (range) {
     const match = range.match(/^bytes=(\d*)-(\d*)$/);
@@ -319,4 +414,54 @@ function serveVideoBytes(
       "cache-control": "no-store",
     },
   });
+}
+
+async function probeDuration(filePath: string): Promise<number | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      "ffprobe",
+      [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        filePath,
+      ],
+      { timeout: 20_000, maxBuffer: 1024 * 1024 },
+    );
+    const duration = Number(stdout.trim());
+    return Number.isFinite(duration) && duration > 0 ? duration : null;
+  } catch {
+    return null;
+  }
+}
+
+function autoTrim(duration: number | null): { start: number; duration: number } {
+  if (!duration || duration <= 8) return { start: 0, duration: Math.max(duration ?? 6, 1) };
+  const clipDuration = Math.min(8, duration);
+  const start = duration > 18 ? Math.max(0, Math.round(duration * 0.2)) : 0;
+  return { start, duration: Math.min(clipDuration, Math.max(duration - start, 1)) };
+}
+
+function extensionForVideo(name: string, type: string): string {
+  const ext = path.extname(name).toLowerCase();
+  if ([".mp4", ".mov", ".webm", ".m4v"].includes(ext)) return ext;
+  if (type === "video/webm") return ".webm";
+  if (type === "video/quicktime") return ".mov";
+  return ".mp4";
+}
+
+function mediaContentType(fileName: string): string {
+  const ext = path.extname(fileName).toLowerCase();
+  if (ext === ".webm") return "video/webm";
+  if (ext === ".mov") return "video/quicktime";
+  if (ext === ".mp3") return "audio/mpeg";
+  return "video/mp4";
+}
+
+function formatSeconds(value: number): string {
+  return `${Number(value.toFixed(1))}s`;
 }

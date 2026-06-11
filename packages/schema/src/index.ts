@@ -192,6 +192,25 @@ export const PhotoDoc = z.object({
 });
 export type PhotoDoc = z.infer<typeof PhotoDoc>;
 
+export const MediaAssetDoc = z.object({
+  _id: z.string(),
+  trip_id: z.string(),
+  member_handle: z.string(),
+  kind: z.enum(["video"]),
+  original_name: z.string(),
+  mime_type: z.string(),
+  file_url: z.string().url(),
+  file_path: z.string(),
+  duration_seconds: z.number().positive().nullable(),
+  trim_start_seconds: z.number().nonnegative(),
+  trim_duration_seconds: z.number().positive(),
+  caption: z.string().nullable(),
+  status: z.enum(["uploaded", "ready", "failed"]),
+  created_at: ISODateTime,
+  updated_at: ISODateTime,
+});
+export type MediaAssetDoc = z.infer<typeof MediaAssetDoc>;
+
 export const VideoScene = z.object({
   id: z.string(),
   title: z.string(),
@@ -247,6 +266,7 @@ export const COLLECTIONS = {
   tickets: "tickets",
   expenses: "expenses",
   photos: "photos",
+  mediaAssets: "media_assets",
   videoJobs: "video_jobs",
   tripMemories: "trip_memories",
 } as const;

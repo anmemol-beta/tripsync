@@ -394,7 +394,8 @@ select {
 }
 
 .detail-panel,
-.studio-panel {
+.studio-panel,
+.clip-panel {
   padding: 11px;
 }
 
@@ -479,6 +480,61 @@ select {
 
 .photo-grid span {
   color: #676259;
+}
+
+.clip-panel {
+  border: 1px solid #e0ded7;
+  border-radius: 8px;
+  background: #fffdf8;
+}
+
+.clip-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.clip-list article {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 9px;
+  align-items: center;
+  min-height: 82px;
+  border: 1px solid #e0ded7;
+  border-radius: 8px;
+  padding: 7px;
+}
+
+.clip-list video {
+  width: 82px;
+  height: 68px;
+  border-radius: 8px;
+  background: #111318;
+  object-fit: cover;
+}
+
+.clip-list div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.clip-list strong,
+.clip-list span {
+  overflow: hidden;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clip-list strong {
+  color: #24211d;
+  font-size: 13px;
+}
+
+.clip-list span {
+  color: #676259;
+  font-size: 12px;
 }
 
 .toggle-group {
@@ -784,6 +840,27 @@ select {
   border-top: 1px solid rgba(25, 25, 22, 0.08);
   background: rgba(246, 244, 238, 0.96);
   backdrop-filter: blur(12px);
+}
+
+.attach-button {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border: 1px solid #d8d1c4;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #2f6d64;
+}
+
+.attach-button.has-file {
+  border-color: #2f6d64;
+  background: #e9f4f0;
+}
+
+.attach-button input {
+  display: none;
 }
 
 .composer input {

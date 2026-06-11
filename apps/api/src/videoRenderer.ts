@@ -10,6 +10,7 @@ import {
   type EventDoc,
   type ExpenseDoc,
   type HistoryDoc,
+  type MediaAssetDoc,
   type MemberDoc,
   type MessageDoc,
   type TicketDoc,
@@ -84,6 +85,7 @@ type RenderContext = {
   events: EventDoc[];
   tickets: TicketDoc[];
   expenses: ExpenseDoc[];
+  mediaAssets: MediaAssetDoc[];
   include?: RenderOptions["include"];
   selectedSceneIds: Set<string> | null;
   selectedPhotoIds: Set<string> | null;
@@ -98,6 +100,10 @@ type SceneTiming = {
   duration: number;
   title: string;
 };
+
+type RenderInput =
+  | { kind: "photo"; path: string; duration: number }
+  | { kind: "video"; path: string; trimStart: number; duration: number };
 
 const FALLBACK_PHOTOS: Array<Pick<PhotoLikeDoc, "url" | "caption" | "place_name">> = [
   {
@@ -261,7 +267,7 @@ async function loadRenderContext(
   const trip = await db.collection<TripDoc>(COLLECTIONS.trips).findOne({ _id: job.trip_id });
   if (!trip) throw new Error(`trip not found: ${job.trip_id}`);
 
-  const [members, messages, history, memories, photos, events, tickets, expenses] = await Promise.all([
+  const [members, messages, history, memories, photos, events, tickets, expenses, mediaAssets] = await Promise.all([
     db
       .collection<MemberDoc>(COLLECTIONS.members)
       .find({ trip_id: job.trip_id })
@@ -307,6 +313,13 @@ async function loadRenderContext(
       .find({ trip_id: job.trip_id, status: "parsed" })
       .sort({ created_at: -1 })
       .toArray(),
+    db
+      .collection<MediaAssetDoc>(COLLECTIONS.mediaAssets)
+      .find({ trip_id: job.trip_id, kind: "video", status: "ready" })
+      .sort({ created_at: -1 })
+      .limit(4)
+      .toArray()
+      .catch(() => []),
   ]);
 
   const fallbackPhotos = FALLBACK_PHOTOS.map((photo, index) => ({
@@ -337,6 +350,7 @@ async function loadRenderContext(
       ? tickets.filter((ticket) => include.tickets!.includes(ticket._id))
       : tickets,
     expenses: include?.settlement === false ? [] : expenses,
+    mediaAssets,
     include,
     selectedSceneIds,
     selectedPhotoIds,
@@ -352,8 +366,8 @@ async function renderWebmArtifact(db: Db, context: RenderContext, startedAt: str
   const outputPath = path.join(VIDEO_OUTPUT_DIR, `${context.job._id}.webm`);
 
   try {
-    const inputPaths = await downloadRenderPhotos(context.photos.slice(0, 6), tempDir);
-    await runFfmpeg(inputPaths, context, outputPath);
+    const inputs = await prepareRenderInputs(context, tempDir);
+    await runFfmpeg(inputs, context, outputPath);
     const fileStat = await stat(outputPath);
     const artifact: VideoJobArtifactDoc = {
       _id: `artifact_webm_${context.job._id}`,
@@ -376,8 +390,18 @@ async function renderWebmArtifact(db: Db, context: RenderContext, startedAt: str
   }
 }
 
-async function downloadRenderPhotos(photos: PhotoLikeDoc[], tempDir: string): Promise<string[]> {
-  const inputPaths: string[] = [];
+async function prepareRenderInputs(context: RenderContext, tempDir: string): Promise<RenderInput[]> {
+  const duration = Math.min(context.job.duration_seconds, 60);
+  const videoInputs = context.mediaAssets.slice(0, 3).map((asset) => ({
+    kind: "video" as const,
+    path: asset.file_path,
+    trimStart: asset.trim_start_seconds,
+    duration: Math.min(asset.trim_duration_seconds, 10),
+  }));
+  const videoDuration = videoInputs.reduce((sum, input) => sum + input.duration, 0);
+  const photoInputs: RenderInput[] = [];
+  const photos = context.photos.slice(0, 6);
+  const photoDuration = Math.max(3, (duration - videoDuration) / Math.max(photos.length, 1));
   for (const [index, photo] of photos.entries()) {
     try {
       const res = await fetch(photo.url);
@@ -385,12 +409,13 @@ async function downloadRenderPhotos(photos: PhotoLikeDoc[], tempDir: string): Pr
       const bytes = Buffer.from(await res.arrayBuffer());
       const filePath = path.join(tempDir, `photo_${index}.jpg`);
       await writeFile(filePath, bytes);
-      inputPaths.push(filePath);
+      photoInputs.push({ kind: "photo", path: filePath, duration: photoDuration });
     } catch {
       // Broken remote assets are skipped; the renderer only needs one usable photo.
     }
   }
-  if (!inputPaths.length) {
+  const inputs = [...videoInputs, ...photoInputs];
+  if (!inputs.length) {
     const fallbackPath = path.join(tempDir, "fallback.jpg");
     await execFileAsync(
       "ffmpeg",
@@ -409,34 +434,40 @@ async function downloadRenderPhotos(photos: PhotoLikeDoc[], tempDir: string): Pr
       ],
       { timeout: 30_000, maxBuffer: 1024 * 1024 },
     );
-    inputPaths.push(fallbackPath);
+    inputs.push({ kind: "photo", path: fallbackPath, duration });
   }
-  return inputPaths;
+  return inputs;
 }
 
 async function runFfmpeg(
-  inputPaths: string[],
+  inputs: RenderInput[],
   context: RenderContext,
   outputPath: string,
 ): Promise<void> {
   const fps = 24;
   const duration = Math.min(context.job.duration_seconds, 60);
-  const segmentDuration = Math.max(3, duration / inputPaths.length);
   const args: string[] = ["-y", "-hide_banner", "-loglevel", "error"];
-  for (const inputPath of inputPaths) {
-    args.push("-loop", "1", "-framerate", String(fps), "-t", String(segmentDuration), "-i", inputPath);
+  for (const input of inputs) {
+    if (input.kind === "photo") {
+      args.push("-loop", "1", "-framerate", String(fps), "-t", String(input.duration), "-i", input.path);
+    } else {
+      args.push("-ss", String(input.trimStart), "-t", String(input.duration), "-i", input.path);
+    }
   }
   args.push("-stream_loop", "-1", "-i", SOUNDTRACK_PATH);
 
-  const imageFilters = inputPaths.map((_, index) => {
-    const frames = Math.ceil(segmentDuration * fps);
-    return `[${index}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,zoompan=z='min(zoom+0.0018,1.18)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=1080x1920:fps=${fps},setsar=1,trim=duration=${segmentDuration},setpts=PTS-STARTPTS[v${index}]`;
+  const mediaFilters = inputs.map((input, index) => {
+    if (input.kind === "photo") {
+      const frames = Math.ceil(input.duration * fps);
+      return `[${index}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,zoompan=z='min(zoom+0.0018,1.18)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=1080x1920:fps=${fps},setsar=1,trim=duration=${input.duration},setpts=PTS-STARTPTS[v${index}]`;
+    }
+    return `[${index}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=${fps},trim=duration=${input.duration},setpts=PTS-STARTPTS[v${index}]`;
   });
-  const concatInputs = inputPaths.map((_, index) => `[v${index}]`).join("");
-  const audioInputIndex = inputPaths.length;
+  const concatInputs = inputs.map((_, index) => `[v${index}]`).join("");
+  const audioInputIndex = inputs.length;
   const filter = [
-    ...imageFilters,
-    `${concatInputs}concat=n=${inputPaths.length}:v=1:a=0,trim=duration=${duration},format=yuv420p,drawbox=x=44:y=1510:w=992:h=24:color=black@0.38:t=fill[v]`,
+    ...mediaFilters,
+    `${concatInputs}concat=n=${inputs.length}:v=1:a=0,trim=duration=${duration},format=yuv420p,drawbox=x=44:y=1510:w=992:h=24:color=black@0.38:t=fill[v]`,
     `[${audioInputIndex}:a]atrim=duration=${duration},asetpts=PTS-STARTPTS,volume=0.16[a]`,
   ].join(";");
 
@@ -754,7 +785,8 @@ function buildRecapHtml(context: RenderContext): string {
       </article>
       <article class="stat">
         ${context.job.duration_seconds}s vertical render<br />
-        ${context.photos.length} photos, ${context.events.length} plans, ${context.tickets.length} tickets${context.expenses.length ? `<br />Settlement included` : ""}${memory ? `<br />Top memory: ${escapeText(memory.title)}` : ""}<br />${escapeText(selectedFacts)}
+        ${context.mediaAssets.length} video clips, ${context.photos.length} photos<br />
+        ${context.events.length} plans, ${context.tickets.length} tickets${context.expenses.length ? `<br />Settlement included` : ""}${memory ? `<br />Top memory: ${escapeText(memory.title)}` : ""}<br />${escapeText(selectedFacts)}
       </article>
     </section>
   </main>
