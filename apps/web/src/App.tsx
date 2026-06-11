@@ -84,6 +84,7 @@ type TripState = {
     vendor: string;
     amount: number;
     currency: string;
+    pdf_url: string | null;
     qr_data: string | null;
     status: "parsing" | "parsed" | "failed";
     starts_at: string;
@@ -96,6 +97,8 @@ type TripState = {
     currency: string;
     description: string;
     split_among: string[];
+    source: "text" | "receipt";
+    receipt_url: string | null;
     status: "parsing" | "parsed" | "failed";
   }>;
   photos: Array<{
@@ -771,6 +774,11 @@ function FeatureDetail({ state, activeFeature }: { state: TripState; activeFeatu
               <strong>{ticket.vendor}</strong>
               <span>{ticket.type} · {memberLabel(state, ticket.member_handle)} · {shortDateTime(ticket.starts_at)}</span>
               <code>{ticket.qr_data ?? "QR pending"}</code>
+              {ticket.pdf_url && (
+                <a href={ticket.pdf_url} target="_blank" rel="noreferrer">
+                  Open ticket PDF
+                </a>
+              )}
             </article>
           ))}
         </div>
@@ -801,6 +809,11 @@ function FeatureDetail({ state, activeFeature }: { state: TripState; activeFeatu
             <article key={expense._id}>
               <strong>{expense.description}</strong>
               <span>{memberLabel(state, expense.payer)} paid {money(expense.amount, expense.currency)} · split {expense.split_among.length} ways</span>
+              {expense.receipt_url && (
+                <a href={expense.receipt_url} target="_blank" rel="noreferrer">
+                  Open receipt image
+                </a>
+              )}
             </article>
           ))}
         </div>

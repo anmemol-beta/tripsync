@@ -105,17 +105,22 @@ describe("video job HTML fallback renderer", () => {
     expect(html).toContain("width: 1080px");
     expect(html).toContain("height: 1920px");
     expect(html).toContain("Tokyo 5/26-5/30 recap");
-    expect(html).toContain("images.unsplash.com");
+    expect(html).toContain("/assets/demo/photos/");
     expect(html).toContain("Start recap with audio");
     expect(html).toContain("data-audio-state");
     expect(html).toContain("data-soundtrack");
-    expect(html).toContain("http://test.local/assets/tripsync-music.mp3");
+    expect(html).toContain("http://test.local/assets/music/");
+    expect(html).toContain("popup-layer");
+    expect(html).toContain("data-popup-index=\"0\"");
+    expect(html).toContain("QR ready");
     expect(html).toContain("const sceneTimeline");
     expect(html).toContain("data-scene-index=\"0\"");
 
     const audioRes = await app.request("/assets/tripsync-music.mp3");
     expect(audioRes.status).toBe(200);
     expect(audioRes.headers.get("content-type")).toContain("audio/mpeg");
+    const randomAudioRes = await app.request("/assets/music/tripsync-music.mp3");
+    expect(randomAudioRes.status).toBe(200);
   });
 
   it("marks a render failed when the trip backing the job is missing", async () => {

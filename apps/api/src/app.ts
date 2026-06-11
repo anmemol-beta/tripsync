@@ -73,7 +73,8 @@ const RenderBody = z.object({
 }).optional();
 
 const API_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SOUNDTRACK_PATH = path.join(API_ROOT, "assets/tripsync-music.mp3");
+const ASSETS_DIR = path.join(API_ROOT, "assets");
+const SOUNDTRACK_PATH = path.join(ASSETS_DIR, "tripsync-music.mp3");
 const UPLOAD_DIR = path.join(API_ROOT, "uploads");
 const execFileAsync = promisify(execFile);
 
@@ -85,21 +86,20 @@ export function buildApp(deps: AppDeps): Hono {
   app.get("/health", (c) => c.json({ ok: true }));
 
   app.get("/assets/tripsync-music.mp3", async () => {
-    try {
-      const [bytes, fileStat] = await Promise.all([readFile(SOUNDTRACK_PATH), stat(SOUNDTRACK_PATH)]);
-      return new Response(bytes, {
-        headers: {
-          "content-type": "audio/mpeg",
-          "content-length": String(fileStat.size),
-          "cache-control": "public, max-age=31536000, immutable",
-        },
-      });
-    } catch {
-      return new Response(JSON.stringify({ error: "not_found" }), {
-        status: 404,
-        headers: { "content-type": "application/json" },
-      });
-    }
+    return serveFile(SOUNDTRACK_PATH, "audio/mpeg", "public, max-age=31536000, immutable");
+  });
+
+  app.get("/assets/music/:file", async (c) => {
+    const fileName = path.basename(c.req.param("file"));
+    const filePath = path.join(ASSETS_DIR, "music", fileName);
+    return serveFile(filePath, mediaContentType(fileName), "public, max-age=31536000, immutable");
+  });
+
+  app.get("/assets/demo/:kind/:file", async (c) => {
+    const kind = path.basename(c.req.param("kind"));
+    const fileName = path.basename(c.req.param("file"));
+    const filePath = path.join(ASSETS_DIR, "demo", kind, fileName);
+    return serveFile(filePath, mediaContentType(fileName), "public, max-age=31536000, immutable");
   });
 
   app.get("/uploads/:file", async (c) => {
@@ -416,6 +416,24 @@ function serveBytes(
   });
 }
 
+async function serveFile(filePath: string, contentType: string, cacheControl: string): Promise<Response> {
+  try {
+    const [bytes, fileStat] = await Promise.all([readFile(filePath), stat(filePath)]);
+    return new Response(bytes, {
+      headers: {
+        "content-type": contentType,
+        "content-length": String(fileStat.size),
+        "cache-control": cacheControl,
+      },
+    });
+  } catch {
+    return new Response(JSON.stringify({ error: "not_found" }), {
+      status: 404,
+      headers: { "content-type": "application/json" },
+    });
+  }
+}
+
 async function probeDuration(filePath: string): Promise<number | null> {
   try {
     const { stdout } = await execFileAsync(
@@ -456,9 +474,17 @@ function extensionForVideo(name: string, type: string): string {
 
 function mediaContentType(fileName: string): string {
   const ext = path.extname(fileName).toLowerCase();
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  if (ext === ".png") return "image/png";
+  if (ext === ".webp") return "image/webp";
+  if (ext === ".pdf") return "application/pdf";
   if (ext === ".webm") return "video/webm";
   if (ext === ".mov") return "video/quicktime";
   if (ext === ".mp3") return "audio/mpeg";
+  if (ext === ".m4a") return "audio/mp4";
+  if (ext === ".wav") return "audio/wav";
+  if (ext === ".aac") return "audio/aac";
+  if (ext === ".flac") return "audio/flac";
   return "video/mp4";
 }
 

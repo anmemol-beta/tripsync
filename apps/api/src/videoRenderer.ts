@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,8 +22,9 @@ import {
 const ARTIFACTS_COLLECTION = "video_job_artifacts";
 const VIDEO_OUTPUT_DIR = path.resolve(process.cwd(), ".generated-videos");
 const API_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SOUNDTRACK_PATH = path.join(API_ROOT, "assets/tripsync-music.mp3");
-const SOUNDTRACK_URL_PATH = "/assets/tripsync-music.mp3";
+const MUSIC_DIR = path.join(API_ROOT, "assets/music");
+const FALLBACK_SOUNDTRACK_PATH = path.join(API_ROOT, "assets/tripsync-music.mp3");
+const FALLBACK_SOUNDTRACK_URL_PATH = "/assets/tripsync-music.mp3";
 const execFileAsync = promisify(execFile);
 
 type VideoJobArtifactDoc = {
@@ -91,6 +92,7 @@ type RenderContext = {
   selectedPhotoIds: Set<string> | null;
   previewUrl: string;
   videoUrl: string;
+  soundtrackPath: string;
   soundtrackUrl: string;
 };
 
@@ -334,6 +336,7 @@ async function loadRenderContext(
   const selectedPhotos = selectedPhotoIds
     ? sourcePhotos.filter((photo) => selectedPhotoIds.has(photo._id ?? ""))
     : sourcePhotos;
+  const soundtrack = await chooseRandomSoundtrack(publicBaseUrl);
 
   return {
     job,
@@ -356,7 +359,8 @@ async function loadRenderContext(
     selectedPhotoIds,
     previewUrl: `${trimSlash(publicBaseUrl)}/video-jobs/${encodeURIComponent(job._id)}/preview`,
     videoUrl: `${trimSlash(publicBaseUrl)}/video-jobs/${encodeURIComponent(job._id)}/${mode === "mp4" ? "video.webm" : "preview"}`,
-    soundtrackUrl: `${trimSlash(publicBaseUrl)}${SOUNDTRACK_URL_PATH}`,
+    soundtrackPath: soundtrack.path,
+    soundtrackUrl: soundtrack.url,
   };
 }
 
@@ -367,7 +371,7 @@ async function renderWebmArtifact(db: Db, context: RenderContext, startedAt: str
 
   try {
     const inputs = await prepareRenderInputs(context, tempDir);
-    await runFfmpeg(inputs, context, outputPath);
+    await runFfmpeg(inputs, context, outputPath, tempDir);
     const fileStat = await stat(outputPath);
     const artifact: VideoJobArtifactDoc = {
       _id: `artifact_webm_${context.job._id}`,
@@ -443,6 +447,7 @@ async function runFfmpeg(
   inputs: RenderInput[],
   context: RenderContext,
   outputPath: string,
+  tempDir: string,
 ): Promise<void> {
   const fps = 24;
   const duration = Math.min(context.job.duration_seconds, 60);
@@ -454,7 +459,11 @@ async function runFfmpeg(
       args.push("-ss", String(input.trimStart), "-t", String(input.duration), "-i", input.path);
     }
   }
-  args.push("-stream_loop", "-1", "-i", SOUNDTRACK_PATH);
+  const popupOverlays = await createPopupOverlayImages(context, tempDir);
+  for (const popup of popupOverlays) {
+    args.push("-loop", "1", "-framerate", String(fps), "-t", String(duration), "-i", popup.path);
+  }
+  args.push("-stream_loop", "-1", "-i", context.soundtrackPath);
 
   const mediaFilters = inputs.map((input, index) => {
     if (input.kind === "photo") {
@@ -464,10 +473,26 @@ async function runFfmpeg(
     return `[${index}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=${fps},trim=duration=${input.duration},setpts=PTS-STARTPTS[v${index}]`;
   });
   const concatInputs = inputs.map((_, index) => `[v${index}]`).join("");
-  const audioInputIndex = inputs.length;
+  const popupInputStart = inputs.length;
+  const audioInputIndex = inputs.length + popupOverlays.length;
+  const baseChain = [
+    `${concatInputs}concat=n=${inputs.length}:v=1:a=0,trim=duration=${duration},format=yuv420p`,
+    "drawbox=x=44:y=1510:w=992:h=24:color=black@0.38:t=fill",
+  ].join(",");
+  const overlayFilters: string[] = [`${baseChain}[base0]`];
+  let current = "base0";
+  popupOverlays.forEach((popup, index) => {
+    const inputIndex = popupInputStart + index;
+    const next = `base${index + 1}`;
+    overlayFilters.push(
+      `[${current}][${inputIndex}:v]overlay=x=62:y=${popup.y}:enable='between(t\\,${popup.start}\\,${popup.end})'[${next}]`,
+    );
+    current = next;
+  });
   const filter = [
     ...mediaFilters,
-    `${concatInputs}concat=n=${inputs.length}:v=1:a=0,trim=duration=${duration},format=yuv420p,drawbox=x=44:y=1510:w=992:h=24:color=black@0.38:t=fill[v]`,
+    ...overlayFilters,
+    `[${current}]format=yuv420p[v]`,
     `[${audioInputIndex}:a]atrim=duration=${duration},asetpts=PTS-STARTPTS,volume=0.16[a]`,
   ].join(";");
 
@@ -505,8 +530,10 @@ function buildRecapHtml(context: RenderContext): string {
   const memberDots = context.members.slice(0, 4);
   const memory = context.memories[0];
   const selectedFacts = buildSelectedFacts(context);
+  const popups = buildViralPopups(context);
   const sceneTimeline = buildSceneTimeline(context.job, context.selectedSceneIds).slice(0, sceneCards.length);
   const sceneTimelineJson = serializeScriptJson(sceneTimeline);
+  const popupsJson = serializeScriptJson(popups);
 
   return `<!doctype html>
 <html lang="en">
@@ -651,6 +678,62 @@ function buildRecapHtml(context: RenderContext): string {
       transform: translateY(10px);
       animation: captionRise 1.2s ease-out infinite alternate;
     }
+    .popup-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 12;
+      pointer-events: none;
+    }
+    .popup {
+      position: absolute;
+      left: 76px;
+      right: 76px;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 12px;
+      align-items: start;
+      max-width: 800px;
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      border-radius: 28px;
+      padding: 18px 20px;
+      background: rgba(17, 19, 24, 0.82);
+      color: #fffaf1;
+      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
+      opacity: 0;
+      transform: translateY(40px) scale(0.92);
+      transition: opacity 180ms ease-out, transform 220ms cubic-bezier(.2, 1.4, .3, 1);
+    }
+    .popup.is-visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    .popup:nth-child(2n) {
+      left: 180px;
+      right: 44px;
+    }
+    .popup-icon {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      border-radius: 16px;
+      background: #e07856;
+      color: #111318;
+      font-size: 25px;
+      font-weight: 900;
+    }
+    .popup strong {
+      display: block;
+      font-size: 25px;
+      line-height: 1.08;
+    }
+    .popup span {
+      display: block;
+      margin-top: 5px;
+      color: rgba(255, 250, 241, 0.82);
+      font-size: 21px;
+      line-height: 1.16;
+    }
     .motion-label {
       position: absolute;
       top: 18px;
@@ -768,6 +851,17 @@ function buildRecapHtml(context: RenderContext): string {
       <div class="motion-label"><span class="motion-dot"></span>playing visual recap</div>
       ${photoTiles.map((photo, index) => renderPhoto(photo, index)).join("")}
     </section>
+    <section class="popup-layer" aria-label="Live recap callouts">
+      ${popups.map((popup, index) => `
+        <article class="popup" data-popup-index="${index}" style="top:${popup.top}px">
+          <div class="popup-icon">${escapeText(popup.icon)}</div>
+          <div>
+            <strong>${escapeText(popup.title)}</strong>
+            <span>${escapeText(popup.body)}</span>
+          </div>
+        </article>
+      `).join("")}
+    </section>
 
     <section class="scene-panel" aria-label="Video scenes">
       ${sceneCards.map((scene, index) => `
@@ -793,6 +887,7 @@ function buildRecapHtml(context: RenderContext): string {
   <audio data-soundtrack src="${escapeAttr(context.soundtrackUrl)}" preload="auto" loop></audio>
   <script>
     const sceneTimeline = ${sceneTimelineJson};
+    const popups = ${popupsJson};
     const recapDurationSeconds = ${context.job.duration_seconds};
     const startButton = document.querySelector("[data-audio-start]");
     const audioState = document.querySelector("[data-audio-state]");
@@ -800,6 +895,7 @@ function buildRecapHtml(context: RenderContext): string {
     const soundtrack = document.querySelector("[data-soundtrack]");
     const sceneEls = Array.from(document.querySelectorAll("[data-scene-index]"));
     const photoEls = Array.from(document.querySelectorAll(".photo"));
+    const popupEls = Array.from(document.querySelectorAll("[data-popup-index]"));
     let startedAt = 0;
     let playing = false;
     let visualStartedAt = performance.now();
@@ -837,6 +933,7 @@ function buildRecapHtml(context: RenderContext): string {
       const active = sceneTimeline.find((scene) => elapsed >= scene.start && elapsed < scene.start + scene.duration);
       setActiveScene(active ? active.index : -1);
       setActivePhoto(elapsed);
+      setActivePopup(elapsed);
       if (playing && elapsed >= recapDurationSeconds) {
         stopRecap();
         audioState.textContent = "Audio complete · recap ended";
@@ -862,18 +959,275 @@ function buildRecapHtml(context: RenderContext): string {
       }
     }
 
+    function setActivePopup(elapsed) {
+      for (const [index, el] of popupEls.entries()) {
+        const popup = popups[index];
+        const visible = popup && elapsed >= popup.start && elapsed < popup.start + popup.duration;
+        el.classList.toggle("is-visible", Boolean(visible));
+      }
+    }
+
   </script>
 </body>
 </html>`;
 }
 
+function buildViralPopups(context: RenderContext): Array<{ start: number; duration: number; top: number; icon: string; title: string; body: string }> {
+  const message = context.messages.find((item) => item.author !== "agent" && /ticket|photo|paid|recap|landing/i.test(item.body));
+  const ticket = context.tickets.find((item) => item.qr_data);
+  const expense = context.expenses.find((item) => item.receipt_url);
+  const transfer = summarizeInlineTransfer(context.expenses);
+  const clip = context.mediaAssets[0];
+  const photo = context.photos[0];
+  return [
+    {
+      start: 2,
+      duration: 4.2,
+      top: 1160,
+      icon: "💬",
+      title: `${message?.author ?? "seo"} said`,
+      body: cleanPopupText(message?.body ?? "Keep the best trip moments grouped by place."),
+    },
+    {
+      start: 8,
+      duration: 4.2,
+      top: 1010,
+      icon: "🎟",
+      title: ticket ? `${ticket.vendor} QR ready` : "Ticket QR ready",
+      body: ticket?.qr_data ? `Confirmation locked: ${shorten(ticket.qr_data, 48)}` : "Parsed ticket data is saved.",
+    },
+    {
+      start: 15,
+      duration: 4.2,
+      top: 1220,
+      icon: "🧾",
+      title: expense ? `${expense.description}` : "Receipt parsed",
+      body: expense ? `${expense.payer} paid ${expense.amount.toLocaleString()} ${expense.currency}` : "Shared receipt added to split.",
+    },
+    {
+      start: 23,
+      duration: 4.2,
+      top: 1080,
+      icon: "💸",
+      title: "Split settled",
+      body: transfer,
+    },
+    {
+      start: 32,
+      duration: 4.2,
+      top: 1180,
+      icon: "🎬",
+      title: clip ? "Uploaded clip trimmed" : "Video clip ready",
+      body: clip ? `${clip.caption ?? clip.original_name} · ${clip.trim_duration_seconds}s` : "Chat video becomes part of the recap.",
+    },
+    {
+      start: 43,
+      duration: 4.6,
+      top: 1020,
+      icon: "✨",
+      title: photo?.place_name ?? "Trip moment",
+      body: `${context.photos.length} photos + ${path.basename(context.soundtrackUrl)} soundtrack`,
+    },
+  ];
+}
+
+async function createPopupOverlayImages(
+  context: RenderContext,
+  tempDir: string,
+): Promise<Array<{ path: string; y: number; start: number; end: number }>> {
+  const popups = buildViralPopups(context);
+  const overlays: Array<{ path: string; y: number; start: number; end: number }> = [];
+  for (const [index, popup] of popups.entries()) {
+    const filePath = path.join(tempDir, `popup_${index}.ppm`);
+    await writeFile(filePath, renderPopupPpm(popup.title, popup.body));
+    overlays.push({
+      path: filePath,
+      y: 1080 + (index % 3) * 120,
+      start: popup.start,
+      end: popup.start + popup.duration,
+    });
+  }
+  return overlays;
+}
+
+function cleanPopupText(value: string): string {
+  return shorten(value.replace(/\n+/g, " ").replace(/\d+\.\s*/g, ""), 78);
+}
+
+function shorten(value: string, max: number): string {
+  return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
+}
+
+function renderPopupPpm(title: string, body: string): Buffer {
+  const width = 956;
+  const height = 112;
+  const pixels = Buffer.alloc(width * height * 3);
+  fillRect(pixels, width, 0, 0, width, height, [17, 19, 24]);
+  fillRect(pixels, width, 0, 0, width, 4, [224, 120, 86]);
+  drawBitmapText(pixels, width, 30, 22, cleanBitmapText(title).toUpperCase(), 4, [255, 255, 255], 29);
+  drawBitmapText(pixels, width, 30, 68, cleanBitmapText(body).toUpperCase(), 3, [255, 241, 214], 43);
+  const header = Buffer.from(`P6\n${width} ${height}\n255\n`, "ascii");
+  return Buffer.concat([header, pixels]);
+}
+
+function fillRect(
+  pixels: Buffer,
+  width: number,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: [number, number, number],
+): void {
+  for (let yy = y; yy < y + h; yy++) {
+    for (let xx = x; xx < x + w; xx++) {
+      setPixel(pixels, width, xx, yy, color);
+    }
+  }
+}
+
+function drawBitmapText(
+  pixels: Buffer,
+  width: number,
+  x: number,
+  y: number,
+  text: string,
+  scale: number,
+  color: [number, number, number],
+  maxChars: number,
+): void {
+  let cursor = x;
+  for (const char of text.slice(0, maxChars)) {
+    const glyph = FONT_5X7[char] ?? SPACE_GLYPH;
+    for (let row = 0; row < glyph.length; row++) {
+      for (let col = 0; col < glyph[row]!.length; col++) {
+        if (glyph[row]![col] !== "1") continue;
+        fillRect(pixels, width, cursor + col * scale, y + row * scale, scale, scale, color);
+      }
+    }
+    cursor += 6 * scale;
+  }
+}
+
+function setPixel(
+  pixels: Buffer,
+  width: number,
+  x: number,
+  y: number,
+  color: [number, number, number],
+): void {
+  const index = (y * width + x) * 3;
+  if (index < 0 || index + 2 >= pixels.length) return;
+  pixels[index] = color[0];
+  pixels[index + 1] = color[1];
+  pixels[index + 2] = color[2];
+}
+
+function cleanBitmapText(value: string): string {
+  return value
+    .replace(/[^\x20-\x7E]/g, "")
+    .replace(/[^A-Za-z0-9 .,:/+&()-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function summarizeInlineTransfer(expenses: ExpenseDoc[]): string {
+  const totals = new Map<string, number>();
+  for (const expense of expenses) {
+    if (expense.split_among.length === 0) continue;
+    const share = Math.floor(expense.amount / expense.split_among.length);
+    totals.set(expense.payer, (totals.get(expense.payer) ?? 0) + expense.amount);
+    for (const member of expense.split_among) {
+      totals.set(member, (totals.get(member) ?? 0) - share);
+    }
+  }
+  const creditor = [...totals.entries()].sort((a, b) => b[1] - a[1])[0];
+  const debtor = [...totals.entries()].sort((a, b) => a[1] - b[1])[0];
+  if (!creditor || !debtor || creditor[1] <= 0 || debtor[1] >= 0) return "Everyone is settled.";
+  return `${debtor[0]} pays ${creditor[0]} ${Math.min(creditor[1], -debtor[1]).toLocaleString()} KRW`;
+}
+
+const FONT_5X7: Record<string, string[]> = {
+  " ": ["00000", "00000", "00000", "00000", "00000", "00000", "00000"],
+  ".": ["00000", "00000", "00000", "00000", "00000", "01100", "01100"],
+  ",": ["00000", "00000", "00000", "00000", "01100", "01100", "01000"],
+  ":": ["00000", "01100", "01100", "00000", "01100", "01100", "00000"],
+  "/": ["00001", "00010", "00100", "01000", "10000", "00000", "00000"],
+  "+": ["00000", "00100", "00100", "11111", "00100", "00100", "00000"],
+  "&": ["01100", "10010", "10100", "01000", "10101", "10010", "01101"],
+  "(": ["00010", "00100", "01000", "01000", "01000", "00100", "00010"],
+  ")": ["01000", "00100", "00010", "00010", "00010", "00100", "01000"],
+  "-": ["00000", "00000", "00000", "11111", "00000", "00000", "00000"],
+  "0": ["01110", "10001", "10011", "10101", "11001", "10001", "01110"],
+  "1": ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+  "2": ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
+  "3": ["11110", "00001", "00001", "01110", "00001", "00001", "11110"],
+  "4": ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
+  "5": ["11111", "10000", "10000", "11110", "00001", "00001", "11110"],
+  "6": ["00110", "01000", "10000", "11110", "10001", "10001", "01110"],
+  "7": ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
+  "8": ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
+  "9": ["01110", "10001", "10001", "01111", "00001", "00010", "11100"],
+  A: ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
+  B: ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
+  C: ["01110", "10001", "10000", "10000", "10000", "10001", "01110"],
+  D: ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
+  E: ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
+  F: ["11111", "10000", "10000", "11110", "10000", "10000", "10000"],
+  G: ["01110", "10001", "10000", "10111", "10001", "10001", "01110"],
+  H: ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
+  I: ["01110", "00100", "00100", "00100", "00100", "00100", "01110"],
+  J: ["00001", "00001", "00001", "00001", "10001", "10001", "01110"],
+  K: ["10001", "10010", "10100", "11000", "10100", "10010", "10001"],
+  L: ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
+  M: ["10001", "11011", "10101", "10101", "10001", "10001", "10001"],
+  N: ["10001", "11001", "10101", "10011", "10001", "10001", "10001"],
+  O: ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+  P: ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
+  Q: ["01110", "10001", "10001", "10001", "10101", "10010", "01101"],
+  R: ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
+  S: ["01111", "10000", "10000", "01110", "00001", "00001", "11110"],
+  T: ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
+  U: ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
+  V: ["10001", "10001", "10001", "10001", "10001", "01010", "00100"],
+  W: ["10001", "10001", "10001", "10101", "10101", "10101", "01010"],
+  X: ["10001", "10001", "01010", "00100", "01010", "10001", "10001"],
+  Y: ["10001", "10001", "01010", "00100", "00100", "00100", "00100"],
+  Z: ["11111", "00001", "00010", "00100", "01000", "10000", "11111"],
+};
+
+const SPACE_GLYPH = FONT_5X7[" "]!;
+
 function buildSelectedFacts(context: RenderContext): string {
   const facts = [
+    path.basename(context.soundtrackUrl),
     context.events[0]?.title,
     context.tickets[0]?.vendor,
     context.expenses[0]?.description,
   ].filter(Boolean);
   return facts.length ? `Mix: ${facts.join(" · ")}` : "Mix: photos and scenes";
+}
+
+async function chooseRandomSoundtrack(publicBaseUrl: string): Promise<{ path: string; url: string }> {
+  try {
+    const entries = await readdir(MUSIC_DIR);
+    const tracks = entries
+      .filter((entry) => /\.(mp3|m4a|wav|aac|flac)$/i.test(entry))
+      .sort();
+    if (tracks.length) {
+      const selected = tracks[Math.floor(Math.random() * tracks.length)]!;
+      return {
+        path: path.join(MUSIC_DIR, selected),
+        url: `${trimSlash(publicBaseUrl)}/assets/music/${encodeURIComponent(selected)}`,
+      };
+    }
+  } catch {
+    // Fall through to the original single-track asset.
+  }
+  return {
+    path: FALLBACK_SOUNDTRACK_PATH,
+    url: `${trimSlash(publicBaseUrl)}${FALLBACK_SOUNDTRACK_URL_PATH}`,
+  };
 }
 
 function getIncludedScenes(context: RenderContext): VideoJobDoc["scenes"] {

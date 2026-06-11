@@ -5,6 +5,7 @@ import {
   COLLECTIONS,
   type EventDoc,
   type ExpenseDoc,
+  type MediaAssetDoc,
   type PhotoDoc,
   type TicketDoc,
 } from "@tripsync/schema";
@@ -38,23 +39,28 @@ describe("trip artifacts", () => {
   });
 
   it("seeds itinerary, tickets, expenses, and photos into MongoDB", async () => {
-    const [events, tickets, expenses, photos] = await Promise.all([
+    const [events, tickets, expenses, photos, mediaAssets] = await Promise.all([
       db.collection<EventDoc>(COLLECTIONS.events).find({ trip_id: BOSTON_CREW_TRIP_ID }).toArray(),
       db.collection<TicketDoc>(COLLECTIONS.tickets).find({ trip_id: BOSTON_CREW_TRIP_ID }).toArray(),
       db.collection<ExpenseDoc>(COLLECTIONS.expenses).find({ trip_id: BOSTON_CREW_TRIP_ID }).toArray(),
       db.collection<PhotoDoc>(COLLECTIONS.photos).find({ trip_id: BOSTON_CREW_TRIP_ID }).toArray(),
+      db.collection<MediaAssetDoc>(COLLECTIONS.mediaAssets).find({ trip_id: BOSTON_CREW_TRIP_ID }).toArray(),
     ]);
 
     expect(events).toHaveLength(bostonCrewFixture.events.length);
     expect(tickets).toHaveLength(bostonCrewFixture.tickets.length);
     expect(expenses).toHaveLength(bostonCrewFixture.expenses.length);
     expect(photos).toHaveLength(bostonCrewFixture.photos.length);
+    expect(mediaAssets).toHaveLength(bostonCrewFixture.mediaAssets.length);
     expect(tickets.find((ticket) => ticket._id === "ticket_teamlab")?.qr_data).toContain(
       "TLB-44109",
     );
+    expect(tickets.every((ticket) => ticket.pdf_url?.includes("/assets/demo/tickets/"))).toBe(true);
     expect(expenses.find((expense) => expense._id === "expense_hotel_deposit")?.split_among)
       .toEqual(["seo", "jamie", "min"]);
-    expect(photos.filter((photo) => photo.place_name === "Azabudai Hills")).toHaveLength(3);
+    expect(expenses.filter((expense) => expense.receipt_url)).toHaveLength(3);
+    expect(photos.every((photo) => photo.url.includes("/assets/demo/photos/"))).toBe(true);
+    expect(mediaAssets[0]?.file_url).toContain("/assets/demo/videos/uploaded-trip-highlights.mp4");
   });
 
   it("returns artifacts and settlement from the trip state API", async () => {
@@ -67,6 +73,7 @@ describe("trip artifacts", () => {
       tickets: TicketDoc[];
       expenses: ExpenseDoc[];
       photos: PhotoDoc[];
+      media_assets: MediaAssetDoc[];
       settlement: {
         totals_by_currency: Array<{ currency: string; amount: number }>;
         transfers: Array<{ from: string; to: string; amount: number; currency: string }>;
@@ -82,14 +89,16 @@ describe("trip artifacts", () => {
     expect(body.tickets.every((ticket) => ticket.qr_data)).toBe(true);
     expect(body.expenses.map((expense) => expense._id)).toEqual([
       "expense_suica_topup",
+      "expense_punjab_dinner",
       "expense_izakaya_dinner",
       "expense_hotel_deposit",
     ]);
     expect(body.photos[0]?._id).toBe("photo_hnd_arrival_seo");
-    expect(body.settlement.totals_by_currency).toEqual([{ currency: "KRW", amount: 775000 }]);
+    expect(body.media_assets.map((asset) => asset._id)).toEqual(["media_uploaded_trip_highlights"]);
+    expect(body.settlement.totals_by_currency).toEqual([{ currency: "KRW", amount: 840000 }]);
     expect(body.settlement.transfers).toEqual([
-      { from: "min", to: "jamie", amount: 213333, currency: "KRW" },
-      { from: "seo", to: "jamie", amount: 120333, currency: "KRW" },
+      { from: "min", to: "jamie", amount: 169999, currency: "KRW" },
+      { from: "seo", to: "jamie", amount: 141999, currency: "KRW" },
     ]);
   });
 });
