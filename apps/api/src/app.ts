@@ -1,3 +1,6 @@
+import { readFile, stat } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { Db } from "mongodb";
@@ -66,12 +69,33 @@ const RenderBody = z.object({
   }).optional(),
 }).optional();
 
+const API_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const SOUNDTRACK_PATH = path.join(API_ROOT, "assets/tripsync-music.mp3");
+
 export function buildApp(deps: AppDeps): Hono {
   const app = new Hono();
 
   app.use("*", cors());
 
   app.get("/health", (c) => c.json({ ok: true }));
+
+  app.get("/assets/tripsync-music.mp3", async () => {
+    try {
+      const [bytes, fileStat] = await Promise.all([readFile(SOUNDTRACK_PATH), stat(SOUNDTRACK_PATH)]);
+      return new Response(bytes, {
+        headers: {
+          "content-type": "audio/mpeg",
+          "content-length": String(fileStat.size),
+          "cache-control": "public, max-age=31536000, immutable",
+        },
+      });
+    } catch {
+      return new Response(JSON.stringify({ error: "not_found" }), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      });
+    }
+  });
 
   app.post("/chat", async (c) => {
     const body = ChatBody.parse(await c.req.json());

@@ -64,10 +64,14 @@ describe("video job HTML fallback renderer", () => {
     expect(html).toContain("images.unsplash.com");
     expect(html).toContain("Start recap with audio");
     expect(html).toContain("data-audio-state");
-    expect(html).toContain("AudioContext");
-    expect(html).toContain("scheduleGeneratedScore");
+    expect(html).toContain("data-soundtrack");
+    expect(html).toContain("http://test.local/assets/tripsync-music.mp3");
     expect(html).toContain("const sceneTimeline");
     expect(html).toContain("data-scene-index=\"0\"");
+
+    const audioRes = await app.request("/assets/tripsync-music.mp3");
+    expect(audioRes.status).toBe(200);
+    expect(audioRes.headers.get("content-type")).toContain("audio/mpeg");
   });
 
   it("marks a render failed when the trip backing the job is missing", async () => {

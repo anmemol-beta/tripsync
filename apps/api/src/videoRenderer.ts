@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import type { Db } from "mongodb";
 import {
@@ -19,6 +20,9 @@ import {
 
 const ARTIFACTS_COLLECTION = "video_job_artifacts";
 const VIDEO_OUTPUT_DIR = path.resolve(process.cwd(), ".generated-videos");
+const API_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const SOUNDTRACK_PATH = path.join(API_ROOT, "assets/tripsync-music.mp3");
+const SOUNDTRACK_URL_PATH = "/assets/tripsync-music.mp3";
 const execFileAsync = promisify(execFile);
 
 type VideoJobArtifactDoc = {
@@ -85,6 +89,7 @@ type RenderContext = {
   selectedPhotoIds: Set<string> | null;
   previewUrl: string;
   videoUrl: string;
+  soundtrackUrl: string;
 };
 
 type SceneTiming = {
@@ -337,6 +342,7 @@ async function loadRenderContext(
     selectedPhotoIds,
     previewUrl: `${trimSlash(publicBaseUrl)}/video-jobs/${encodeURIComponent(job._id)}/preview`,
     videoUrl: `${trimSlash(publicBaseUrl)}/video-jobs/${encodeURIComponent(job._id)}/${mode === "mp4" ? "video.webm" : "preview"}`,
+    soundtrackUrl: `${trimSlash(publicBaseUrl)}${SOUNDTRACK_URL_PATH}`,
   };
 }
 
@@ -420,7 +426,7 @@ async function runFfmpeg(
   for (const inputPath of inputPaths) {
     args.push("-loop", "1", "-framerate", String(fps), "-t", String(segmentDuration), "-i", inputPath);
   }
-  args.push("-f", "lavfi", "-t", String(duration), "-i", "sine=frequency=196:sample_rate=44100");
+  args.push("-stream_loop", "-1", "-i", SOUNDTRACK_PATH);
 
   const imageFilters = inputPaths.map((_, index) => {
     const frames = Math.ceil(segmentDuration * fps);
@@ -431,7 +437,7 @@ async function runFfmpeg(
   const filter = [
     ...imageFilters,
     `${concatInputs}concat=n=${inputPaths.length}:v=1:a=0,trim=duration=${duration},format=yuv420p,drawbox=x=44:y=1510:w=992:h=24:color=black@0.38:t=fill[v]`,
-    `[${audioInputIndex}:a]volume=0.08[a]`,
+    `[${audioInputIndex}:a]atrim=duration=${duration},asetpts=PTS-STARTPTS,volume=0.16[a]`,
   ].join(";");
 
   args.push(
@@ -752,15 +758,16 @@ function buildRecapHtml(context: RenderContext): string {
       </article>
     </section>
   </main>
+  <audio data-soundtrack src="${escapeAttr(context.soundtrackUrl)}" preload="auto" loop></audio>
   <script>
     const sceneTimeline = ${sceneTimelineJson};
     const recapDurationSeconds = ${context.job.duration_seconds};
     const startButton = document.querySelector("[data-audio-start]");
     const audioState = document.querySelector("[data-audio-state]");
     const progressFill = document.querySelector("[data-progress-fill]");
+    const soundtrack = document.querySelector("[data-soundtrack]");
     const sceneEls = Array.from(document.querySelectorAll("[data-scene-index]"));
     const photoEls = Array.from(document.querySelectorAll(".photo"));
-    let audioContext = null;
     let startedAt = 0;
     let playing = false;
     let visualStartedAt = performance.now();
@@ -770,10 +777,10 @@ function buildRecapHtml(context: RenderContext): string {
         stopRecap();
         return;
       }
-      audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      await audioContext.resume();
-      startedAt = audioContext.currentTime + 0.08;
-      scheduleGeneratedScore(audioContext, startedAt, recapDurationSeconds);
+      soundtrack.currentTime = 0;
+      soundtrack.volume = 0.72;
+      await soundtrack.play();
+      startedAt = performance.now();
       playing = true;
       startButton.textContent = "Stop audio";
       audioState.textContent = "Audio playing · scenes synced to soundtrack";
@@ -783,18 +790,16 @@ function buildRecapHtml(context: RenderContext): string {
 
     function stopRecap() {
       playing = false;
-      if (audioContext) {
-        audioContext.close();
-        audioContext = null;
-      }
+      soundtrack.pause();
+      soundtrack.currentTime = 0;
       visualStartedAt = performance.now();
       startButton.textContent = "Start recap with audio";
       audioState.textContent = "Audio stopped · visual recap keeps playing";
     }
 
     function tick(now) {
-      const elapsed = playing && audioContext
-        ? Math.max(0, audioContext.currentTime - startedAt)
+      const elapsed = playing
+        ? Math.max(0, (now - startedAt) / 1000)
         : ((now - visualStartedAt) / 1000) % recapDurationSeconds;
       setProgress(Math.min(elapsed / recapDurationSeconds, 1) * 100);
       const active = sceneTimeline.find((scene) => elapsed >= scene.start && elapsed < scene.start + scene.duration);
@@ -825,48 +830,6 @@ function buildRecapHtml(context: RenderContext): string {
       }
     }
 
-    function scheduleGeneratedScore(ctx, startAt, durationSeconds) {
-      const master = ctx.createGain();
-      master.gain.setValueAtTime(0.0001, startAt);
-      master.gain.exponentialRampToValueAtTime(0.22, startAt + 0.8);
-      master.gain.setValueAtTime(0.22, startAt + Math.max(durationSeconds - 2, 1));
-      master.gain.exponentialRampToValueAtTime(0.0001, startAt + durationSeconds);
-      master.connect(ctx.destination);
-
-      const chords = [
-        [261.63, 329.63, 392.00],
-        [293.66, 369.99, 440.00],
-        [220.00, 329.63, 440.00],
-        [246.94, 311.13, 392.00],
-      ];
-      for (let bar = 0; bar * 2 < durationSeconds; bar++) {
-        const chord = chords[bar % chords.length];
-        for (const freq of chord) {
-          playTone(ctx, master, freq, startAt + bar * 2, 1.85, "sine", 0.055);
-        }
-      }
-      for (let beat = 0; beat * 0.5 < durationSeconds; beat++) {
-        const t = startAt + beat * 0.5;
-        playTone(ctx, master, beat % 4 === 0 ? 130.81 : 196.00, t, 0.08, "triangle", beat % 4 === 0 ? 0.09 : 0.035);
-      }
-      for (const scene of sceneTimeline) {
-        playTone(ctx, master, 880, startAt + scene.start, 0.16, "sine", 0.07);
-      }
-    }
-
-    function playTone(ctx, output, frequency, startAt, duration, type, volume) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = type;
-      osc.frequency.setValueAtTime(frequency, startAt);
-      gain.gain.setValueAtTime(0.0001, startAt);
-      gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
-      osc.connect(gain);
-      gain.connect(output);
-      osc.start(startAt);
-      osc.stop(startAt + duration + 0.05);
-    }
   </script>
 </body>
 </html>`;
