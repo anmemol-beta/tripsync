@@ -30,6 +30,7 @@ async function main(): Promise<void> {
     gemini,
     embeddings,
     vectorSearchIndex: process.env["ATLAS_VECTOR_SEARCH_INDEX"] ?? "trip_memories_vector",
+    publicBaseUrl: process.env["PUBLIC_API_BASE_URL"] ?? `http://localhost:${process.env["PORT"] ?? 4000}`,
     ...(mcp ? { mcp, mcpDatabase: db.databaseName } : {}),
   });
   const port = Number(process.env["PORT"] ?? 4000);

@@ -182,6 +182,7 @@ select {
 .video-band,
 .proposal,
 .scene-strip article,
+.artifact-card,
 .memory-band,
 .trace {
   border: 1px solid #e0ded7;
@@ -225,6 +226,13 @@ select {
   line-height: 1.35;
 }
 
+.video-actions {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 7px;
+  justify-items: end;
+}
+
 .icon-button,
 .composer button {
   display: grid;
@@ -236,6 +244,7 @@ select {
   border-radius: 8px;
   background: #111318;
   color: #fffaf1;
+  text-decoration: none;
 }
 
 .pill {
@@ -286,6 +295,61 @@ select {
 
 .scene-strip span {
   grid-column: 2;
+}
+
+.recap-player {
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  border: 1px solid #15161a;
+  border-radius: 8px;
+  background: #111318;
+}
+
+.artifact-rail {
+  display: grid;
+  grid-auto-columns: minmax(148px, 1fr);
+  grid-auto-flow: column;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.artifact-card {
+  display: grid;
+  gap: 5px;
+  min-height: 116px;
+  padding: 10px;
+}
+
+.artifact-card > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #2f6d64;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.artifact-card strong {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #24211d;
+  font-size: 13px;
+  line-height: 1.2;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.artifact-card small,
+.artifact-card p {
+  margin: 0;
+  overflow: hidden;
+  color: #676259;
+  font-size: 12px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .memory-band {

@@ -1,5 +1,18 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Camera, Check, CirclePlay, RefreshCw, Send, Sparkles, X } from "lucide-react";
+import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  CalendarDays,
+  Camera,
+  Check,
+  CirclePlay,
+  ExternalLink,
+  Images,
+  QrCode,
+  ReceiptText,
+  RefreshCw,
+  Send,
+  Sparkles,
+  X,
+} from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:4000";
 const TRIP_ID = "trip_tokyo_2026_05";
@@ -53,6 +66,47 @@ type TripState = {
     actor: string;
     created_at: string;
   }>;
+  events: Array<{
+    _id: string;
+    title: string;
+    starts_at: string;
+    ends_at: string | null;
+    location: string | null;
+    status: "open" | "done" | "skipped";
+  }>;
+  tickets: Array<{
+    _id: string;
+    member_handle: string;
+    type: string;
+    vendor: string;
+    amount: number;
+    currency: string;
+    qr_data: string | null;
+    status: "parsing" | "parsed" | "failed";
+    starts_at: string;
+    ends_at: string | null;
+  }>;
+  expenses: Array<{
+    _id: string;
+    payer: string;
+    amount: number;
+    currency: string;
+    description: string;
+    split_among: string[];
+    status: "parsing" | "parsed" | "failed";
+  }>;
+  photos: Array<{
+    _id: string;
+    member_handle: string;
+    url: string;
+    taken_at: string;
+    caption: string | null;
+    place_name: string | null;
+  }>;
+  settlement: {
+    transfers: Array<{ from: string; to: string; amount: number; currency: string }>;
+    totals_by_currency: Array<{ currency: string; amount: number }>;
+  };
   video_jobs: Array<{
     _id: string;
     status: "brief_ready" | "rendering" | "ready" | "failed";
@@ -157,9 +211,29 @@ function App() {
     }
   }
 
+  async function renderVideoJob(jobId: string) {
+    setBusy(true);
+    setError(null);
+    setToolSteps([{ name: "render_video", status: "completed", summary: "building playable MP4 video" }]);
+    try {
+      const res = await fetch(`${API_BASE}/video-jobs/${jobId}/render`, { method: "POST" });
+      if (!res.ok) throw new Error(`render failed: ${res.status}`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const openProposal = state?.proposals.find((proposal) => proposal.status === "open");
   const latestVideo = state?.video_jobs[0];
+  const hasPlayableVideo = Boolean(latestVideo?.output_url?.match(/\/video\.(mp4|webm)$/));
   const activitySteps = busy ? runningActivity(toolSteps) : toolSteps;
+  const nextEvent = state?.events.find((event) => event.status === "open");
+  const firstTicket = state?.tickets.find((ticket) => ticket.qr_data);
+  const firstTransfer = state?.settlement.transfers[0];
+  const firstPhoto = state?.photos[0];
   const memberName = useMemo(() => {
     const found = state?.members.find((member) => member.user_handle === author);
     return found?.display_name ?? author;
@@ -228,7 +302,32 @@ function App() {
             <p>{latestVideo ? latestVideo.narrative : "Agent turns the trip state into a vertical recap video plan."}</p>
           </div>
           {latestVideo ? (
-            <span className={`pill ${latestVideo.status}`}>{latestVideo.status.replace("_", " ")}</span>
+            <div className="video-actions">
+              <span className={`pill ${latestVideo.status}`}>{latestVideo.status.replace("_", " ")}</span>
+              {(latestVideo.status === "brief_ready" || latestVideo.status === "failed" || !hasPlayableVideo) && (
+                <button
+                  className="icon-button"
+                  onClick={() => renderVideoJob(latestVideo._id)}
+                  disabled={busy}
+                  aria-label="Render playable video"
+                  title="Render playable video"
+                >
+                  <CirclePlay size={18} />
+                </button>
+              )}
+              {latestVideo.status === "ready" && latestVideo.output_url && hasPlayableVideo && (
+                <a
+                  className="icon-button"
+                  href={latestVideo.output_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Open playable video"
+                  title="Open playable video"
+                >
+                  <ExternalLink size={18} />
+                </a>
+              )}
+            </div>
           ) : (
             <button
               className="icon-button"
@@ -257,6 +356,45 @@ function App() {
             ))}
           </section>
         )}
+
+        {latestVideo?.output_url && hasPlayableVideo && (
+          <video className="recap-player" src={latestVideo.output_url} controls playsInline preload="metadata" />
+        )}
+
+        <section className="artifact-rail" aria-label="Trippo artifacts">
+          <ArtifactCard
+            icon={<CalendarDays size={15} />}
+            label="Next plan"
+            title={nextEvent?.title ?? "No event yet"}
+            meta={nextEvent ? shortDateTime(nextEvent.starts_at) : "Waiting"}
+            detail={nextEvent?.location ?? `${state.events.length} events`}
+          />
+          <ArtifactCard
+            icon={<QrCode size={15} />}
+            label="Ticket QR"
+            title={firstTicket?.vendor ?? "No ticket yet"}
+            meta={firstTicket ? `${firstTicket.type} · ${memberLabel(state, firstTicket.member_handle)}` : "Waiting"}
+            detail={firstTicket?.qr_data ? "QR parsed" : `${state.tickets.length} tickets`}
+          />
+          <ArtifactCard
+            icon={<ReceiptText size={15} />}
+            label="Split"
+            title={
+              firstTransfer
+                ? `${memberLabel(state, firstTransfer.from)} -> ${memberLabel(state, firstTransfer.to)}`
+                : "No transfer"
+            }
+            meta={firstTransfer ? money(firstTransfer.amount, firstTransfer.currency) : "Settled"}
+            detail={`${state.expenses.length} expenses`}
+          />
+          <ArtifactCard
+            icon={<Images size={15} />}
+            label="Photos"
+            title={firstPhoto?.place_name ?? "No photos yet"}
+            meta={`${state.photos.length} synced`}
+            detail={firstPhoto?.caption ?? "Used in recap"}
+          />
+        </section>
 
         <section className="trace" aria-label="Agent activity">
           <div className="section-head">
@@ -419,9 +557,59 @@ function toolLabel(name: string): string {
     update_trip_decision: "Save decision",
     append_history: "Append history",
     create_travel_video: "Create video brief",
+    render_video: "Render recap",
     waiting: "Waiting",
   };
   return labels[name] ?? name;
+}
+
+function ArtifactCard({
+  icon,
+  label,
+  title,
+  meta,
+  detail,
+}: {
+  icon: ReactNode;
+  label: string;
+  title: string;
+  meta: string;
+  detail: string;
+}) {
+  return (
+    <article className="artifact-card">
+      <div>
+        {icon}
+        <span>{label}</span>
+      </div>
+      <strong>{title}</strong>
+      <small>{meta}</small>
+      <p>{detail}</p>
+    </article>
+  );
+}
+
+function shortDateTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function memberLabel(state: TripState, handle: string): string {
+  return state.members.find((member) => member.user_handle === handle)?.display_name ?? handle;
+}
+
+function money(amount: number, currency: string): string {
+  return new Intl.NumberFormat("en", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 function voteCount(state: TripState, proposalId: string, optionId: string): number {

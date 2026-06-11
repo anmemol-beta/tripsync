@@ -120,6 +120,78 @@ export const HistoryDoc = z.object({
 });
 export type HistoryDoc = z.infer<typeof HistoryDoc>;
 
+export const EventDoc = z.object({
+  _id: z.string(),
+  trip_id: z.string(),
+  title: z.string(),
+  starts_at: ISODateTime,
+  ends_at: ISODateTime.nullable(),
+  location: z.string().nullable(),
+  source: z.enum(["message", "ticket", "proposal", "seed"]),
+  source_id: z.string(),
+  status: z.enum(["open", "done", "skipped"]),
+  created_at: ISODateTime,
+  updated_at: ISODateTime,
+});
+export type EventDoc = z.infer<typeof EventDoc>;
+
+export const TicketDoc = z.object({
+  _id: z.string(),
+  trip_id: z.string(),
+  member_handle: z.string(),
+  type: z.enum(["flight", "hotel", "event", "receipt", "voucher", "reservation", "other"]),
+  vendor: z.string(),
+  amount: z.number().int().nonnegative(),
+  currency: z.string(),
+  details_json: z.record(z.unknown()),
+  pdf_url: z.string().url().nullable(),
+  qr_data: z.string().nullable(),
+  status: z.enum(["parsing", "parsed", "failed"]),
+  starts_at: ISODateTime,
+  ends_at: ISODateTime.nullable(),
+  latitude: z.number().nullable(),
+  longitude: z.number().nullable(),
+  origin_latitude: z.number().nullable(),
+  origin_longitude: z.number().nullable(),
+  created_at: ISODateTime,
+  updated_at: ISODateTime,
+});
+export type TicketDoc = z.infer<typeof TicketDoc>;
+
+export const ExpenseDoc = z.object({
+  _id: z.string(),
+  trip_id: z.string(),
+  payer: z.string(),
+  amount: z.number().int().positive(),
+  currency: z.string(),
+  description: z.string(),
+  split_among: z.array(z.string()).min(1),
+  source: z.enum(["text", "receipt"]),
+  receipt_url: z.string().url().nullable(),
+  status: z.enum(["parsing", "parsed", "failed"]),
+  created_at: ISODateTime,
+  updated_at: ISODateTime,
+});
+export type ExpenseDoc = z.infer<typeof ExpenseDoc>;
+
+export const PhotoDoc = z.object({
+  _id: z.string(),
+  trip_id: z.string(),
+  member_handle: z.string(),
+  url: z.string().url(),
+  taken_at: ISODateTime,
+  latitude: z.number().nullable(),
+  longitude: z.number().nullable(),
+  width: z.number().int().positive().nullable(),
+  height: z.number().int().positive().nullable(),
+  caption: z.string().nullable(),
+  place_name: z.string().nullable(),
+  status: z.enum(["pending", "enriched", "failed"]),
+  created_at: ISODateTime,
+  updated_at: ISODateTime,
+});
+export type PhotoDoc = z.infer<typeof PhotoDoc>;
+
 export const VideoScene = z.object({
   id: z.string(),
   title: z.string(),
@@ -171,6 +243,10 @@ export const COLLECTIONS = {
   proposals: "proposals",
   votes: "votes",
   history: "history",
+  events: "events",
+  tickets: "tickets",
+  expenses: "expenses",
+  photos: "photos",
   videoJobs: "video_jobs",
   tripMemories: "trip_memories",
 } as const;
