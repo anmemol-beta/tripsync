@@ -530,7 +530,7 @@ function App() {
         {activeView === "chat" && (
           <>
             <section className="thread" aria-label="Trip chat">
-              {state.messages.slice(-12).map((message) => (
+              {state.messages.map((message) => (
                 <article
                   key={message._id}
                   className={`message ${message.author === "agent" ? "agent" : message.author === author ? "me" : ""}`}
