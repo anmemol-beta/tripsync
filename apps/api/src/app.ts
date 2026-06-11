@@ -63,6 +63,7 @@ const VoteBody = z.object({
 });
 
 const RenderBody = z.object({
+  duration_seconds: z.union([z.literal(60), z.literal(90), z.literal(120)]).optional(),
   include: z.object({
     scenes: z.array(z.string()).optional(),
     photos: z.array(z.string()).optional(),
@@ -219,6 +220,14 @@ export function buildApp(deps: AppDeps): Hono {
     const id = c.req.param("id");
     try {
       const body = RenderBody.parse(await c.req.json().catch(() => undefined));
+      if (body?.duration_seconds) {
+        await deps.db
+          .collection<VideoJobDoc>(COLLECTIONS.videoJobs)
+          .updateOne(
+            { _id: id },
+            { $set: { duration_seconds: body.duration_seconds, updated_at: new Date().toISOString() } },
+          );
+      }
       const result = await renderVideoJob(
         deps.db,
         id,

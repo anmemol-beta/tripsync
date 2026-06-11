@@ -395,11 +395,14 @@ async function renderWebmArtifact(db: Db, context: RenderContext, startedAt: str
 }
 
 async function prepareRenderInputs(context: RenderContext, tempDir: string): Promise<RenderInput[]> {
-  const duration = Math.min(context.job.duration_seconds, 60);
+  const duration = context.job.duration_seconds;
   const videoInputs: RenderInput[] = [];
   const videoTargetDuration = Math.max(0, duration - 4);
   let videoDuration = 0;
-  for (const asset of context.mediaAssets) {
+  const orderedAssets = context.mediaAssets.length ? context.mediaAssets : [];
+  const maxVideoPasses = orderedAssets.length * Math.ceil(duration / Math.max(1, orderedAssets.length * 6));
+  for (let index = 0; index < maxVideoPasses && videoDuration < videoTargetDuration; index++) {
+    const asset = orderedAssets[index % orderedAssets.length]!;
     if (videoDuration >= videoTargetDuration) break;
     try {
       await stat(asset.file_path);
@@ -468,7 +471,7 @@ async function runFfmpeg(
   tempDir: string,
 ): Promise<void> {
   const fps = 24;
-  const duration = Math.min(context.job.duration_seconds, 60);
+  const duration = context.job.duration_seconds;
   const args: string[] = ["-y", "-hide_banner", "-loglevel", "error"];
   for (const input of inputs) {
     if (input.kind === "photo") {

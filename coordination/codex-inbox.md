@@ -14,3 +14,9 @@ Review current work: demo recap must use real travel clips heavily, not feature 
 ```text
 Sub-agent review accepted: fix videoRenderer 3-clip cap, make preview show real videos, add explicit render-in-progress UI, and update tests to require multiple travel clips.
 ```
+
+## 2026-06-11T07:44:24.904Z
+
+```text
+Review task: add 60/90/120 second selectable recap duration. Check schema, seed, API render, web UI, and tests for places that still assume only 60 or cap at 60.
+```

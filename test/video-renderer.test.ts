@@ -83,6 +83,8 @@ describe("video job HTML fallback renderer", () => {
 
     const renderRes = await app.request("/video-jobs/video_test_ready/render", {
       method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ duration_seconds: 90 }),
     });
     expect(renderRes.status).toBe(200);
     expect(await renderRes.json()).toMatchObject({
@@ -95,6 +97,7 @@ describe("video job HTML fallback renderer", () => {
       .collection<VideoJobDoc>(COLLECTIONS.videoJobs)
       .findOne({ _id: "video_test_ready" });
     expect(job?.status).toBe("ready");
+    expect(job?.duration_seconds).toBe(90);
     expect(job?.output_url).toBe("http://test.local/video-jobs/video_test_ready/preview");
     expect(job?.failure_reason).toBeNull();
 
@@ -105,6 +108,7 @@ describe("video job HTML fallback renderer", () => {
     expect(html).toContain("width: 1080px");
     expect(html).toContain("height: 1920px");
     expect(html).toContain("Tokyo 5/26-5/30 recap");
+    expect(html).toContain("90s vertical render");
     expect(html).toContain("<video src=\"http://localhost:4000/assets/demo/videos/");
     expect(html).toContain("playing real travel clips");
     expect(html).toContain("Start recap with audio");

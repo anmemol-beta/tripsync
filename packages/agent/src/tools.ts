@@ -85,7 +85,7 @@ export type AppendHistoryArgs = z.infer<typeof AppendHistoryArgs>;
 export const CreateTravelVideoArgs = z.object({
   trip_id: z.string(),
   requested_by: z.string(),
-  duration_seconds: z.union([z.literal(60), z.literal(180), z.literal(300)]).default(60),
+  duration_seconds: z.union([z.literal(60), z.literal(90), z.literal(120)]).default(60),
   narrative: z.string(),
   scenes: z
     .array(

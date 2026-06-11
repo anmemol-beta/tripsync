@@ -227,7 +227,7 @@ export const VideoJobDoc = z.object({
   requested_by: z.string(),
   status: z.enum(["brief_ready", "rendering", "ready", "failed"]),
   format: z.enum(["vertical_9_16"]),
-  duration_seconds: z.union([z.literal(60), z.literal(180), z.literal(300)]),
+  duration_seconds: z.union([z.literal(60), z.literal(90), z.literal(120)]),
   title: z.string(),
   narrative: z.string(),
   scenes: z.array(VideoScene).min(1),

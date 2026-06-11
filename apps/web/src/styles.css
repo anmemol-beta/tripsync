@@ -640,6 +640,29 @@ select {
   margin-top: 11px;
 }
 
+.duration-control {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.duration-control button {
+  height: 34px;
+  border: 1px solid #d8d5cc;
+  border-radius: 8px;
+  background: #fffaf1;
+  color: #4f4a42;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.duration-control button.is-active {
+  border-color: #111318;
+  background: #111318;
+  color: #fffaf1;
+}
+
 .toggle-group h3 {
   margin: 0;
   color: #2f6d64;

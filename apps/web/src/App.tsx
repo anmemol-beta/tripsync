@@ -128,7 +128,7 @@ type TripState = {
   video_jobs: Array<{
     _id: string;
     status: "brief_ready" | "rendering" | "ready" | "failed";
-    duration_seconds: 60 | 180 | 300;
+    duration_seconds: VideoDuration;
     title: string;
     narrative: string;
     scenes: Array<{ id: string; title: string; prompt: string; duration_seconds: number }>;
@@ -147,7 +147,9 @@ type ToolCall = { name: string };
 type ToolStep = { name: string; status: "completed" | "failed" | "running"; summary: string };
 type AppView = "trip" | "video" | "chat";
 type FeaturePanel = "plans" | "tickets" | "split" | "photos";
+type VideoDuration = 60 | 90 | 120;
 type VideoSelection = {
+  durationSeconds: VideoDuration;
   scenes: string[];
   photos: string[];
   events: string[];
@@ -166,6 +168,7 @@ function App() {
   const [activeView, setActiveView] = useState<AppView>("trip");
   const [activeFeature, setActiveFeature] = useState<FeaturePanel>("plans");
   const [videoSelection, setVideoSelection] = useState<VideoSelection>({
+    durationSeconds: 60,
     scenes: [],
     photos: [],
     events: [],
@@ -194,6 +197,7 @@ function App() {
   useEffect(() => {
     if (!state || selectionTripId === state.trip._id) return;
     setVideoSelection({
+      durationSeconds: state.video_jobs[0]?.duration_seconds ?? 60,
       scenes: state.video_jobs[0]?.scenes.map((scene) => scene.id) ?? [],
       photos: state.photos.slice(0, 6).map((photo) => photo._id),
       events: [],
@@ -299,7 +303,9 @@ function App() {
       const res = await fetch(`${API_BASE}/video-jobs/${jobId}/render`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: include ? JSON.stringify({ include }) : undefined,
+        body: include
+          ? JSON.stringify({ duration_seconds: include.durationSeconds, include })
+          : undefined,
       });
       if (!res.ok) throw new Error(`render failed: ${res.status}`);
       setToolSteps([{ name: "render_video", status: "completed", summary: "playable travel recap is ready" }]);
@@ -473,7 +479,7 @@ function App() {
               <div>
                 <p className="eyebrow">Video studio</p>
                 <h2>{latestVideo ? latestVideo.title : "Travel video brief"}</h2>
-                <p>{latestVideo ? `${selectedCount} travel clips, scenes, and photo cuts selected for a 60s render.` : "Create a brief first, then choose what goes into the video."}</p>
+                <p>{latestVideo ? `${selectedCount} travel clips, scenes, and photo cuts selected for a ${videoSelection.durationSeconds}s render.` : "Create a brief first, then choose what goes into the video."}</p>
               </div>
               {latestVideo ? (
                 <div className="video-actions">
@@ -507,7 +513,7 @@ function App() {
                   className="icon-button"
                   onClick={() =>
                     sendText(
-                      "Create a 60-second vertical travel video brief from the confirmed itinerary, vote reasons, and chat highlights.",
+                      `Create a ${videoSelection.durationSeconds}-second vertical travel video brief from the uploaded travel clips and chat highlights.`,
                     )
                   }
                   disabled={busy}
@@ -538,8 +544,8 @@ function App() {
                     {isGeneratingVideo
                       ? "Using the uploaded travel clips first, then adding quick photo cuts and music."
                       : hasPlayableVideo
-                        ? `${recapState === "playing" ? "Playing" : "Playable"} 60-second video is available below.`
-                        : "Tap the play button to render the 60-second travel video."}
+                        ? `${recapState === "playing" ? "Playing" : "Playable"} ${videoSelection.durationSeconds}-second video is available below.`
+                        : `Tap the play button to render the ${videoSelection.durationSeconds}-second travel video.`}
                   </span>
                 </div>
               </section>
@@ -900,7 +906,19 @@ function VideoStudio({
     <section className="studio-panel">
       <div className="section-head">
         <SlidersHorizontal size={15} />
-        <h2>60s render mix</h2>
+        <h2>{selection.durationSeconds}s render mix</h2>
+      </div>
+      <div className="duration-control" aria-label="Video duration">
+        {([60, 90, 120] as const).map((duration) => (
+          <button
+            key={duration}
+            type="button"
+            className={selection.durationSeconds === duration ? "is-active" : ""}
+            onClick={() => onChange({ ...selection, durationSeconds: duration })}
+          >
+            {duration}s
+          </button>
+        ))}
       </div>
       <ToggleGroup
         title="Scenes"

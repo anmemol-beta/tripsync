@@ -6,3 +6,4 @@ Every non-trivial feature commit that changes `apps/`, `packages/`, or `test/` m
 
 - Added a repository-level coordination harness so feature work has an explicit task ledger, screen-agent inboxes, feedback files, and a pre-commit guard.
 - Accepted Codex sub-agent feedback for the demo video flow: seed multiple real travel clips, remove feature-demo beats from recap rendering, make the renderer video-first, add visible generation state in the mobile UI, and require these expectations in tests.
+- Accepted selectable recap durations of 60, 90, and 120 seconds. The render API receives the selected duration, updates the video job, and the renderer uses that duration without the previous 60-second cap.
