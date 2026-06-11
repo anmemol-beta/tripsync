@@ -20,3 +20,15 @@ Review task: add 60/90/120 second selectable recap duration. Check schema, seed,
 ```text
 Review task: add polished intro/outro to recap render. Need title thumbnail/card at start, smoother ending card, audio fade-in/out, video fade-out, and no abrupt cutoff. Check videoRenderer ffmpeg filter risks.
 ```
+
+## 2026-06-11T08:27:51.496Z
+
+```text
+Review task: generated recap music has audible cuts. Inspect videoRenderer audio handling. We likely need a continuous audio bed instead of direct -stream_loop mp3. Check for loop-boundary, fade, and -shortest risks.
+```
+
+## 2026-06-11T08:30:27.306Z
+
+```text
+Review task: add tasteful video effects to Trippo recap render. Need mid-video zoom pulses and glitch/noise bursts that work with local ffmpeg, without breaking duration/audio fades/title/outro. Suggest safe filter graph approach.
+```

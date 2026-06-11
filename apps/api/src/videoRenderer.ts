@@ -340,7 +340,7 @@ async function loadRenderContext(
   const selectedPhotos = selectedPhotoIds
     ? sourcePhotos.filter((photo) => selectedPhotoIds.has(photo._id ?? ""))
     : sourcePhotos;
-  const soundtrack = await chooseRandomSoundtrack(publicBaseUrl);
+  const soundtrack = await chooseRandomSoundtrack(publicBaseUrl, job.duration_seconds);
 
   return {
     job,
@@ -503,7 +503,7 @@ async function runFfmpeg(
   for (const popup of popupOverlays) {
     args.push("-loop", "1", "-framerate", String(fps), "-t", String(duration), "-i", popup.path);
   }
-  args.push("-stream_loop", "-1", "-i", context.soundtrackPath);
+  args.push("-i", context.soundtrackPath);
 
   const mediaFilters = inputs.map((input, index) => {
     if (input.kind === "photo") {
@@ -520,6 +520,7 @@ async function runFfmpeg(
   const audioInputIndex = inputs.length + popupOverlays.length;
   const baseChain = [
     `${concatInputs}concat=n=${inputs.length}:v=1:a=0,trim=duration=${duration},format=yuv420p`,
+    ...buildMotionEffectFilters(duration),
     `fade=t=in:st=0:d=0.7,fade=t=out:st=${Math.max(0, duration - 1.4).toFixed(2)}:d=1.4`,
     "drawbox=x=44:y=1510:w=992:h=24:color=black@0.38:t=fill",
   ].join(",");
@@ -537,7 +538,7 @@ async function runFfmpeg(
     ...mediaFilters,
     ...overlayFilters,
     `[${current}]format=yuv420p[v]`,
-    `[${audioInputIndex}:a]atrim=duration=${duration},asetpts=PTS-STARTPTS,volume=0.16,afade=t=in:st=0:d=2,afade=t=out:st=${Math.max(0, duration - 3).toFixed(2)}:d=3[a]`,
+    `[${audioInputIndex}:a]aresample=async=1:first_pts=0,apad=whole_dur=${duration},atrim=duration=${duration},asetpts=PTS-STARTPTS,volume=0.16,afade=t=in:st=0:d=2,afade=t=out:st=${Math.max(0, duration - 3).toFixed(2)}:d=3[a]`,
   ].join(";");
 
   args.push(
@@ -553,7 +554,7 @@ async function runFfmpeg(
     "-preset",
     "veryfast",
     "-crf",
-    "24",
+    "28",
     "-c:a",
     "aac",
     "-b:a",
@@ -564,6 +565,33 @@ async function runFfmpeg(
   );
 
   await execFileAsync("ffmpeg", args, { timeout: 360_000, maxBuffer: 1024 * 1024 });
+}
+
+function buildMotionEffectFilters(duration: number): string[] {
+  const latestEffectStart = Math.max(INTRO_DURATION_SECONDS + 2, duration - OUTRO_DURATION_SECONDS - 3);
+  const zoomStarts = [8, 22, 36, 50, 66, 82, 98]
+    .map((start) => INTRO_DURATION_SECONDS + start)
+    .filter((start) => start < latestEffectStart);
+  const glitchStarts = [14, 31, 47, 73, 91]
+    .map((start) => INTRO_DURATION_SECONDS + start)
+    .filter((start) => start < latestEffectStart);
+  const zoomExpr = buildBetweenExpression(zoomStarts, 0.48);
+  const glitchExpr = buildBetweenExpression(glitchStarts, 0.22);
+  return [
+    `scale=w='if(gte(${zoomExpr}\\,1)\\,1140\\,1080)':h='if(gte(${zoomExpr}\\,1)\\,2026\\,1920)':eval=frame`,
+    "crop=1080:1920",
+    "eq=contrast=1.05:saturation=1.12:gamma=1.01",
+    "unsharp=5:5:0.45:3:3:0.15",
+    `rgbashift=rh=10:bh=-10:edge=wrap:enable='${glitchExpr}'`,
+    `noise=alls=14:allf=t+u:enable='${glitchExpr}'`,
+  ];
+}
+
+function buildBetweenExpression(starts: number[], span: number): string {
+  if (!starts.length) return "0";
+  return starts
+    .map((start) => `between(t\\,${start.toFixed(2)}\\,${(start + span).toFixed(2)})`)
+    .join("+");
 }
 
 function buildRecapHtml(context: RenderContext): string {
@@ -1171,11 +1199,44 @@ function renderTitleCardPpm(
   fillRect(pixels, width, 92, 420, 896, 6, accent);
   fillRect(pixels, width, 92, 1450, 896, 6, secondary);
   drawCenteredBitmapText(pixels, width, 540, 540, variant === "intro" ? "TRIPPO RECAP" : "SAVED TO TRIPPO", 5, secondary, 26);
-  drawCenteredBitmapText(pixels, width, 540, 710, title, 10, primary, 15);
+  drawTitleLines(pixels, width, 540, 690, title, primary);
   drawCenteredBitmapText(pixels, width, 540, 870, subtitle, 5, secondary, 24);
   drawCenteredBitmapText(pixels, width, 540, 1290, footer, 5, primary, 25);
   const header = Buffer.from(`P6\n${width} ${height}\n255\n`, "ascii");
   return Buffer.concat([header, pixels]);
+}
+
+function drawTitleLines(
+  pixels: Buffer,
+  width: number,
+  centerX: number,
+  y: number,
+  title: string,
+  color: [number, number, number],
+): void {
+  const words = cleanBitmapText(title).toUpperCase().split(/\s+/).filter(Boolean);
+  const lines = splitBitmapLines(words, 13).slice(0, 2);
+  const scale = lines.some((line) => line.length > 11) ? 7 : 8;
+  const lineGap = 92;
+  lines.forEach((line, index) => {
+    drawCenteredBitmapText(pixels, width, centerX, y + index * lineGap, line, scale, color, 18);
+  });
+}
+
+function splitBitmapLines(words: string[], maxChars: number): string[] {
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length <= maxChars || !current) {
+      current = next;
+      continue;
+    }
+    lines.push(current);
+    current = word;
+  }
+  if (current) lines.push(current);
+  return lines.length ? lines : ["TRAVEL RECAP"];
 }
 
 function drawCenteredBitmapText(
@@ -1330,12 +1391,21 @@ function buildSelectedFacts(context: RenderContext): string {
   return facts.length ? `Travel mix: ${facts.join(" · ")}` : "Travel mix: video clips";
 }
 
-async function chooseRandomSoundtrack(publicBaseUrl: string): Promise<{ path: string; url: string }> {
+async function chooseRandomSoundtrack(
+  publicBaseUrl: string,
+  minDurationSeconds: number,
+): Promise<{ path: string; url: string }> {
   try {
     const entries = await readdir(MUSIC_DIR);
-    const tracks = entries
+    const candidates = entries
       .filter((entry) => /\.(mp3|m4a|wav|aac|flac)$/i.test(entry))
       .sort();
+    const tracks: string[] = [];
+    for (const entry of candidates) {
+      const filePath = path.join(MUSIC_DIR, entry);
+      const duration = await probeMediaDuration(filePath);
+      if (duration === null || duration >= minDurationSeconds + 3) tracks.push(entry);
+    }
     if (tracks.length) {
       const selected = tracks[Math.floor(Math.random() * tracks.length)]!;
       return {
@@ -1350,6 +1420,28 @@ async function chooseRandomSoundtrack(publicBaseUrl: string): Promise<{ path: st
     path: FALLBACK_SOUNDTRACK_PATH,
     url: `${trimSlash(publicBaseUrl)}${FALLBACK_SOUNDTRACK_URL_PATH}`,
   };
+}
+
+async function probeMediaDuration(filePath: string): Promise<number | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      "ffprobe",
+      [
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        filePath,
+      ],
+      { timeout: 10_000, maxBuffer: 1024 * 1024 },
+    );
+    const value = Number(stdout.trim());
+    return Number.isFinite(value) && value > 0 ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 function getIncludedScenes(context: RenderContext): VideoJobDoc["scenes"] {

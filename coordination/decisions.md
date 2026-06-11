@@ -10,3 +10,5 @@ Every non-trivial feature commit that changes `apps/`, `packages/`, or `test/` m
 - Accepted recap polish pass: generated title card at the start, closing card at the end, popup timing offset after the intro, video fade out, and soundtrack fade in/out.
 - Accepted MP4 output for generated recap videos because h264/aac renders the polished 9:16 video fast enough for the demo while remaining browser-playable.
 - Accepted small selection thumbnails in Video Studio so users can identify clips, photos, and scene-linked media before generating.
+- Accepted continuous soundtrack handling without `-stream_loop`; only tracks longer than the selected render are used, with timestamp resampling and fade in/out.
+- Accepted mid-video motion polish using dynamic zoom pulses, short RGB glitch bursts, temporal noise, contrast/saturation lift, and sharpening outside the intro/outro cards.

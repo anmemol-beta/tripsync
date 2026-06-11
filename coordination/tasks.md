@@ -32,6 +32,13 @@ Use this file as the PM-visible task ledger before starting non-trivial feature 
 - Screen agents consulted:
   - antigravity: covered by current video polish feedback loop
   - codex: covered by current video polish feedback loop
+- Task: Smooth soundtrack and add motion effects.
+- Owner: Codex PM
+- Goal: Avoid music cuts and add tasteful zoom/glitch/noise moments in the middle of the recap.
+- Verify: typecheck, tests, API build, actual MP4 render, ffprobe duration/audio/video, and frame checks.
+- Screen agents consulted:
+  - antigravity: prompt recorded in `coordination/agd-inbox.md`
+  - codex: prompt recorded in `coordination/codex-inbox.md`
 
 ## Template
 
