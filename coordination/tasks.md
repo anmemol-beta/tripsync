@@ -18,6 +18,20 @@ Use this file as the PM-visible task ledger before starting non-trivial feature 
 - Screen agents consulted:
   - antigravity: prompt recorded in `coordination/agd-inbox.md`
   - codex: prompt recorded in `coordination/codex-inbox.md`; sub-agent review received.
+- Task: Add polished video intro/outro.
+- Owner: Codex PM
+- Goal: Start with a title card, finish with a closing card, and fade audio/video so the recap does not cut abruptly.
+- Verify: typecheck, tests, build, and real MP4 render with ffprobe duration/audio/video.
+- Screen agents consulted:
+  - antigravity: prompt recorded in `coordination/agd-inbox.md`
+  - codex: prompt recorded in `coordination/codex-inbox.md`; sub-agent review received.
+- Task: Show selected video ingredients.
+- Owner: Codex PM
+- Goal: Let the video selection UI show small previews for clips, photos, and scene-linked media.
+- Verify: typecheck, web build, and browser surface check.
+- Screen agents consulted:
+  - antigravity: covered by current video polish feedback loop
+  - codex: covered by current video polish feedback loop
 
 ## Template
 

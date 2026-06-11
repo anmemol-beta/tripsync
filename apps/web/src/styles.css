@@ -670,6 +670,32 @@ select {
   text-transform: uppercase;
 }
 
+.media-check {
+  grid-template-columns: 44px auto minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 54px;
+}
+
+.media-check.is-locked {
+  opacity: 0.82;
+}
+
+.selection-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: #111318;
+  object-fit: cover;
+}
+
+.text-thumb {
+  display: grid;
+  place-items: center;
+  color: #fffaf1;
+  font-size: 15px;
+  font-weight: 900;
+}
+
 .toggle-group > div {
   display: grid;
   gap: 6px;
@@ -698,6 +724,11 @@ select {
 .check-row small {
   color: #676259;
   font-size: 11px;
+}
+
+.check-row.media-check {
+  grid-template-columns: 44px auto minmax(0, 1fr) auto;
+  min-height: 54px;
 }
 
 .memory-band {

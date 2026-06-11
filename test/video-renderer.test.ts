@@ -111,6 +111,9 @@ describe("video job HTML fallback renderer", () => {
     expect(html).toContain("90s vertical render");
     expect(html).toContain("<video src=\"http://localhost:4000/assets/demo/videos/");
     expect(html).toContain("playing real travel clips");
+    expect(html).toContain("saved to trippo");
+    expect(html).toContain("introTitle");
+    expect(html).toContain("outroTitle");
     expect(html).toContain("Start recap with audio");
     expect(html).toContain("data-audio-state");
     expect(html).toContain("data-soundtrack");

@@ -131,7 +131,7 @@ type TripState = {
     duration_seconds: VideoDuration;
     title: string;
     narrative: string;
-    scenes: Array<{ id: string; title: string; prompt: string; duration_seconds: number }>;
+    scenes: Array<{ id: string; title: string; prompt: string; duration_seconds: number; asset_refs?: string[] }>;
     output_url: string | null;
   }>;
   trip_memories: Array<{
@@ -926,9 +926,22 @@ function VideoStudio({
           id: scene.id,
           title: scene.title,
           meta: `${scene.duration_seconds}s`,
+          preview: scenePreview(state, scene.asset_refs ?? []),
         }))}
         selected={selection.scenes}
         onToggle={(id) => onChange({ ...selection, scenes: toggleId(selection.scenes, id) })}
+      />
+      <ToggleGroup
+        title="Clips"
+        items={state.media_assets.map((asset) => ({
+          id: asset._id,
+          title: asset.caption ?? asset.original_name,
+          meta: `${memberLabel(state, asset.member_handle)} · ${formatSeconds(asset.trim_duration_seconds)}`,
+          preview: { kind: "video" as const, src: asset.file_url },
+        }))}
+        selected={state.media_assets.map((asset) => asset._id)}
+        onToggle={() => undefined}
+        locked
       />
       <ToggleGroup
         title="Photos"
@@ -936,6 +949,7 @@ function VideoStudio({
           id: photo._id,
           title: photo.place_name ?? photo.caption ?? "Trip photo",
           meta: memberLabel(state, photo.member_handle),
+          preview: { kind: "image" as const, src: photo.url },
         }))}
         selected={selection.photos}
         onToggle={(id) => onChange({ ...selection, photos: toggleId(selection.photos, id) })}
@@ -949,19 +963,27 @@ function ToggleGroup({
   items,
   selected,
   onToggle,
+  locked = false,
 }: {
   title: string;
-  items: Array<{ id: string; title: string; meta: string }>;
+  items: Array<{ id: string; title: string; meta: string; preview?: SelectionPreview }>;
   selected: string[];
   onToggle: (id: string) => void;
+  locked?: boolean;
 }) {
   return (
     <div className="toggle-group">
       <h3>{title}</h3>
       <div>
         {items.map((item) => (
-          <label key={item.id} className="check-row">
-            <input type="checkbox" checked={selected.includes(item.id)} onChange={() => onToggle(item.id)} />
+          <label key={item.id} className={`check-row media-check ${locked ? "is-locked" : ""}`}>
+            {item.preview && <SelectionThumb preview={item.preview} />}
+            <input
+              type="checkbox"
+              checked={selected.includes(item.id)}
+              onChange={() => onToggle(item.id)}
+              disabled={locked}
+            />
             <span>{item.title}</span>
             <small>{item.meta}</small>
           </label>
@@ -969,6 +991,28 @@ function ToggleGroup({
       </div>
     </div>
   );
+}
+
+type SelectionPreview = { kind: "image" | "video" | "text"; src?: string; text?: string };
+
+function SelectionThumb({ preview }: { preview: SelectionPreview }) {
+  if (preview.kind === "image" && preview.src) return <img className="selection-thumb" src={preview.src} alt="" />;
+  if (preview.kind === "video" && preview.src) {
+    return <video className="selection-thumb" src={preview.src} muted playsInline preload="metadata" />;
+  }
+  return <span className="selection-thumb text-thumb">{preview.text?.slice(0, 1).toUpperCase() ?? "T"}</span>;
+}
+
+function scenePreview(state: TripState, refs: string[]): SelectionPreview | undefined {
+  for (const ref of refs) {
+    const clip = state.media_assets.find((asset) => asset._id === ref);
+    if (clip) return { kind: "video", src: clip.file_url };
+    const photo = state.photos.find((item) => item._id === ref);
+    if (photo) return { kind: "image", src: photo.url };
+    const message = state.messages.find((item) => item._id === ref);
+    if (message) return { kind: "text", text: message.body };
+  }
+  return undefined;
 }
 
 function toggleId(values: string[], id: string): string[] {

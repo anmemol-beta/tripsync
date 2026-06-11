@@ -105,7 +105,11 @@ type SceneTiming = {
 
 type RenderInput =
   | { kind: "photo"; path: string; duration: number }
+  | { kind: "card"; path: string; duration: number }
   | { kind: "video"; path: string; trimStart: number; duration: number };
+
+const INTRO_DURATION_SECONDS = 2.6;
+const OUTRO_DURATION_SECONDS = 3.2;
 
 const FALLBACK_PHOTOS: Array<Pick<PhotoLikeDoc, "url" | "caption" | "place_name">> = [
   {
@@ -140,7 +144,7 @@ export async function renderVideoJob(
   const job = await jobs.findOne({ _id: jobId });
   if (!job) throw new RenderHttpError(404, "video_job_not_found");
 
-  if (!options.include && job.status === "ready" && job.output_url?.endsWith("/video.webm")) {
+  if (!options.include && job.status === "ready" && job.output_url?.match(/\/video\.(mp4|webm)$/)) {
     return { video_job_id: job._id, status: job.status, output_url: job.output_url };
   }
   if (job.status === "rendering") {
@@ -185,7 +189,7 @@ export async function renderVideoJob(
         { upsert: true },
       );
 
-    const outputUrl = mode === "mp4" ? await renderWebmArtifact(db, context, now) : context.previewUrl;
+    const outputUrl = mode === "mp4" ? await renderMp4Artifact(db, context, now) : context.previewUrl;
     const readyAt = new Date().toISOString();
     await jobs.updateOne(
       { _id: jobId },
@@ -358,27 +362,27 @@ async function loadRenderContext(
     selectedSceneIds,
     selectedPhotoIds,
     previewUrl: `${trimSlash(publicBaseUrl)}/video-jobs/${encodeURIComponent(job._id)}/preview`,
-    videoUrl: `${trimSlash(publicBaseUrl)}/video-jobs/${encodeURIComponent(job._id)}/${mode === "mp4" ? "video.webm" : "preview"}`,
+    videoUrl: `${trimSlash(publicBaseUrl)}/video-jobs/${encodeURIComponent(job._id)}/${mode === "mp4" ? "video.mp4" : "preview"}`,
     soundtrackPath: soundtrack.path,
     soundtrackUrl: soundtrack.url,
   };
 }
 
-async function renderWebmArtifact(db: Db, context: RenderContext, startedAt: string): Promise<string> {
+async function renderMp4Artifact(db: Db, context: RenderContext, startedAt: string): Promise<string> {
   await mkdir(VIDEO_OUTPUT_DIR, { recursive: true });
   const tempDir = await mkdtemp(path.join(tmpdir(), "tripsync-video-"));
-  const outputPath = path.join(VIDEO_OUTPUT_DIR, `${context.job._id}.webm`);
+  const outputPath = path.join(VIDEO_OUTPUT_DIR, `${context.job._id}.mp4`);
 
   try {
     const inputs = await prepareRenderInputs(context, tempDir);
     await runFfmpeg(inputs, context, outputPath, tempDir);
     const fileStat = await stat(outputPath);
     const artifact: VideoJobArtifactDoc = {
-      _id: `artifact_webm_${context.job._id}`,
+      _id: `artifact_mp4_${context.job._id}`,
       video_job_id: context.job._id,
       trip_id: context.job.trip_id,
-      kind: "webm_video",
-      content_type: "video/webm",
+      kind: "mp4_video",
+      content_type: "video/mp4",
       file_path: outputPath,
       byte_length: fileStat.size,
       render_selection: context.include,
@@ -396,8 +400,18 @@ async function renderWebmArtifact(db: Db, context: RenderContext, startedAt: str
 
 async function prepareRenderInputs(context: RenderContext, tempDir: string): Promise<RenderInput[]> {
   const duration = context.job.duration_seconds;
+  const introPath = path.join(tempDir, "intro_card.ppm");
+  const outroPath = path.join(tempDir, "outro_card.ppm");
+  await Promise.all([
+    writeFile(introPath, renderTitleCardPpm(context.job.title, context.trip.destination, `${duration}s travel recap`, "intro")),
+    writeFile(outroPath, renderTitleCardPpm("More than a plan", context.job.title, "Trippo made the memory", "outro")),
+  ]);
+
+  const contentDuration = Math.max(1, duration - INTRO_DURATION_SECONDS - OUTRO_DURATION_SECONDS);
   const videoInputs: RenderInput[] = [];
-  const videoTargetDuration = Math.max(0, duration - 4);
+  const targetPhotoCount = Math.min(context.photos.length, context.mediaAssets.length ? 4 : 6);
+  const reservedPhotoDuration = targetPhotoCount > 0 ? Math.min(4, targetPhotoCount * 1.1) : 0;
+  const videoTargetDuration = Math.max(0, contentDuration - reservedPhotoDuration);
   let videoDuration = 0;
   const orderedAssets = context.mediaAssets.length ? context.mediaAssets : [];
   const maxVideoPasses = orderedAssets.length * Math.ceil(duration / Math.max(1, orderedAssets.length * 6));
@@ -409,7 +423,7 @@ async function prepareRenderInputs(context: RenderContext, tempDir: string): Pro
     } catch {
       continue;
     }
-    const remaining = duration - videoDuration;
+    const remaining = videoTargetDuration - videoDuration;
     const clipDuration = Math.min(asset.trim_duration_seconds, remaining, 9);
     if (clipDuration <= 0.5) continue;
     videoInputs.push({
@@ -421,11 +435,11 @@ async function prepareRenderInputs(context: RenderContext, tempDir: string): Pro
     videoDuration += clipDuration;
   }
   const photoInputs: RenderInput[] = [];
-  const remainingPhotoTime = Math.max(0, duration - videoDuration);
-  const photoCount = Math.min(context.photos.length, videoInputs.length ? 4 : 6);
+  const remainingPhotoTime = Math.max(0, contentDuration - videoDuration);
+  const photoCount = Math.min(targetPhotoCount, Math.floor(remainingPhotoTime / 0.5));
   const photos = context.photos.slice(0, photoCount);
   const photoDuration = videoInputs.length
-    ? Math.min(2, Math.max(1.1, remainingPhotoTime / Math.max(photos.length, 1)))
+    ? Math.min(1.4, remainingPhotoTime / Math.max(photos.length, 1))
     : Math.max(3, remainingPhotoTime / Math.max(photos.length, 1));
   for (const [index, photo] of photos.entries()) {
     try {
@@ -439,7 +453,12 @@ async function prepareRenderInputs(context: RenderContext, tempDir: string): Pro
       // Broken remote assets are skipped; the renderer only needs one usable photo.
     }
   }
-  const inputs = [...videoInputs, ...photoInputs];
+  const inputs: RenderInput[] = [
+    { kind: "card", path: introPath, duration: INTRO_DURATION_SECONDS },
+    ...videoInputs,
+    ...photoInputs,
+    { kind: "card", path: outroPath, duration: OUTRO_DURATION_SECONDS },
+  ];
   if (!inputs.length) {
     const fallbackPath = path.join(tempDir, "fallback.jpg");
     await execFileAsync(
@@ -474,7 +493,7 @@ async function runFfmpeg(
   const duration = context.job.duration_seconds;
   const args: string[] = ["-y", "-hide_banner", "-loglevel", "error"];
   for (const input of inputs) {
-    if (input.kind === "photo") {
+    if (input.kind === "photo" || input.kind === "card") {
       args.push("-loop", "1", "-framerate", String(fps), "-t", String(input.duration), "-i", input.path);
     } else {
       args.push("-ss", String(input.trimStart), "-t", String(input.duration), "-i", input.path);
@@ -491,6 +510,9 @@ async function runFfmpeg(
       const frames = Math.ceil(input.duration * fps);
       return `[${index}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,zoompan=z='min(zoom+0.0018,1.18)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=1080x1920:fps=${fps},setsar=1,trim=duration=${input.duration},setpts=PTS-STARTPTS[v${index}]`;
     }
+    if (input.kind === "card") {
+      return `[${index}:v]scale=1080:1920,setsar=1,fps=${fps},trim=duration=${input.duration},setpts=PTS-STARTPTS[v${index}]`;
+    }
     return `[${index}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=${fps},trim=duration=${input.duration},setpts=PTS-STARTPTS[v${index}]`;
   });
   const concatInputs = inputs.map((_, index) => `[v${index}]`).join("");
@@ -498,6 +520,7 @@ async function runFfmpeg(
   const audioInputIndex = inputs.length + popupOverlays.length;
   const baseChain = [
     `${concatInputs}concat=n=${inputs.length}:v=1:a=0,trim=duration=${duration},format=yuv420p`,
+    `fade=t=in:st=0:d=0.7,fade=t=out:st=${Math.max(0, duration - 1.4).toFixed(2)}:d=1.4`,
     "drawbox=x=44:y=1510:w=992:h=24:color=black@0.38:t=fill",
   ].join(",");
   const overlayFilters: string[] = [`${baseChain}[base0]`];
@@ -514,7 +537,7 @@ async function runFfmpeg(
     ...mediaFilters,
     ...overlayFilters,
     `[${current}]format=yuv420p[v]`,
-    `[${audioInputIndex}:a]atrim=duration=${duration},asetpts=PTS-STARTPTS,volume=0.16[a]`,
+    `[${audioInputIndex}:a]atrim=duration=${duration},asetpts=PTS-STARTPTS,volume=0.16,afade=t=in:st=0:d=2,afade=t=out:st=${Math.max(0, duration - 3).toFixed(2)}:d=3[a]`,
   ].join(";");
 
   args.push(
@@ -526,21 +549,21 @@ async function runFfmpeg(
     "[a]",
     "-shortest",
     "-c:v",
-    "libvpx",
-    "-deadline",
-    "realtime",
-    "-cpu-used",
-    "8",
-    "-b:v",
-    "2.4M",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "24",
     "-c:a",
-    "libopus",
+    "aac",
     "-b:a",
-    "96k",
+    "128k",
+    "-movflags",
+    "+faststart",
     outputPath,
   );
 
-  await execFileAsync("ffmpeg", args, { timeout: 180_000, maxBuffer: 1024 * 1024 });
+  await execFileAsync("ffmpeg", args, { timeout: 360_000, maxBuffer: 1024 * 1024 });
 }
 
 function buildRecapHtml(context: RenderContext): string {
@@ -670,6 +693,33 @@ function buildRecapHtml(context: RenderContext): string {
       border-radius: 8px;
       background: #d9d2c5;
       box-shadow: 0 18px 45px rgba(28, 26, 22, 0.18);
+    }
+    .photos::before,
+    .photos::after {
+      position: absolute;
+      left: 20px;
+      right: 20px;
+      z-index: 8;
+      color: #fffaf1;
+      text-shadow: 0 2px 14px rgba(0, 0, 0, 0.45);
+      pointer-events: none;
+    }
+    .photos::before {
+      content: "${escapeCssString(context.job.title)}";
+      top: 88px;
+      font-size: 58px;
+      font-weight: 900;
+      line-height: 0.95;
+      animation: introTitle 5s ease-out forwards;
+    }
+    .photos::after {
+      content: "saved to trippo";
+      bottom: 86px;
+      font-size: 30px;
+      font-weight: 900;
+      text-transform: uppercase;
+      opacity: 0;
+      animation: outroTitle ${context.job.duration_seconds}s linear infinite;
     }
     .photo {
       position: absolute;
@@ -855,6 +905,15 @@ function buildRecapHtml(context: RenderContext): string {
       0%, 100% { transform: scale(0.72); opacity: 0.55; }
       50% { transform: scale(1.1); opacity: 1; }
     }
+    @keyframes introTitle {
+      0% { opacity: 0; transform: translateY(18px); }
+      18%, 64% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-14px); }
+    }
+    @keyframes outroTitle {
+      0%, 88% { opacity: 0; transform: translateY(16px); }
+      94%, 100% { opacity: 1; transform: translateY(0); }
+    }
   </style>
 </head>
 <body>
@@ -997,6 +1056,7 @@ function buildRecapHtml(context: RenderContext): string {
 }
 
 function buildViralPopups(context: RenderContext): Array<{ start: number; duration: number; top: number; icon: string; title: string; body: string }> {
+  const offset = INTRO_DURATION_SECONDS;
   const friendMessages = context.messages.filter((item) => item.author !== "agent");
   const firstClip = context.mediaAssets[0];
   const middleClip = context.mediaAssets[Math.floor(context.mediaAssets.length / 2)];
@@ -1004,7 +1064,7 @@ function buildViralPopups(context: RenderContext): Array<{ start: number; durati
   const photo = context.photos.find((item) => /food|lobster|stew|dinner/i.test(item.caption ?? item.place_name ?? "")) ?? context.photos[0];
   return [
     {
-      start: 2,
+      start: offset + 2,
       duration: 4.2,
       top: 1160,
       icon: "CHAT",
@@ -1012,7 +1072,7 @@ function buildViralPopups(context: RenderContext): Array<{ start: number; durati
       body: cleanPopupText(friendMessages[0]?.body ?? "Keep the road clip first."),
     },
     {
-      start: 8,
+      start: offset + 8,
       duration: 4.2,
       top: 1010,
       icon: "ROAD",
@@ -1020,7 +1080,7 @@ function buildViralPopups(context: RenderContext): Array<{ start: number; durati
       body: "Open with movement so it feels like the trip is starting.",
     },
     {
-      start: 15,
+      start: offset + 15,
       duration: 4.2,
       top: 1220,
       icon: "LOL",
@@ -1028,7 +1088,7 @@ function buildViralPopups(context: RenderContext): Array<{ start: number; durati
       body: cleanPopupText(friendMessages[2]?.body ?? "Use the clip where I look useful."),
     },
     {
-      start: 23,
+      start: offset + 23,
       duration: 4.2,
       top: 1080,
       icon: "FOOD",
@@ -1036,7 +1096,7 @@ function buildViralPopups(context: RenderContext): Array<{ start: number; durati
       body: "Quick food cuts on the beat, then back to the clips.",
     },
     {
-      start: 32,
+      start: offset + 32,
       duration: 4.2,
       top: 1180,
       icon: "CLIP",
@@ -1044,7 +1104,7 @@ function buildViralPopups(context: RenderContext): Array<{ start: number; durati
       body: "Small bubbles, no giant title over faces.",
     },
     {
-      start: 43,
+      start: offset + 43,
       duration: 4.6,
       top: 1020,
       icon: "END",
@@ -1091,6 +1151,46 @@ function renderPopupPpm(title: string, body: string): Buffer {
   drawBitmapText(pixels, width, 30, 68, cleanBitmapText(body).toUpperCase(), 3, [255, 241, 214], 43);
   const header = Buffer.from(`P6\n${width} ${height}\n255\n`, "ascii");
   return Buffer.concat([header, pixels]);
+}
+
+function renderTitleCardPpm(
+  title: string,
+  subtitle: string,
+  footer: string,
+  variant: "intro" | "outro",
+): Buffer {
+  const width = 1080;
+  const height = 1920;
+  const pixels = Buffer.alloc(width * height * 3);
+  const background: [number, number, number] = variant === "intro" ? [246, 241, 232] : [17, 19, 24];
+  const primary: [number, number, number] = variant === "intro" ? [17, 19, 24] : [255, 250, 241];
+  const secondary: [number, number, number] = variant === "intro" ? [47, 109, 100] : [241, 192, 168];
+  const accent: [number, number, number] = [224, 120, 86];
+  fillRect(pixels, width, 0, 0, width, height, background);
+  fillRect(pixels, width, 0, 0, width, 18, accent);
+  fillRect(pixels, width, 92, 420, 896, 6, accent);
+  fillRect(pixels, width, 92, 1450, 896, 6, secondary);
+  drawCenteredBitmapText(pixels, width, 540, 540, variant === "intro" ? "TRIPPO RECAP" : "SAVED TO TRIPPO", 5, secondary, 26);
+  drawCenteredBitmapText(pixels, width, 540, 710, title, 10, primary, 15);
+  drawCenteredBitmapText(pixels, width, 540, 870, subtitle, 5, secondary, 24);
+  drawCenteredBitmapText(pixels, width, 540, 1290, footer, 5, primary, 25);
+  const header = Buffer.from(`P6\n${width} ${height}\n255\n`, "ascii");
+  return Buffer.concat([header, pixels]);
+}
+
+function drawCenteredBitmapText(
+  pixels: Buffer,
+  width: number,
+  centerX: number,
+  y: number,
+  text: string,
+  scale: number,
+  color: [number, number, number],
+  maxChars: number,
+): void {
+  const cleaned = cleanBitmapText(text).toUpperCase().slice(0, maxChars);
+  const textWidth = cleaned.length * 6 * scale;
+  drawBitmapText(pixels, width, Math.max(20, Math.floor(centerX - textWidth / 2)), y, cleaned, scale, color, maxChars);
 }
 
 function fillRect(
@@ -1329,6 +1429,13 @@ function escapeText(value: string | null | undefined): string {
 
 function escapeAttr(value: string): string {
   return escapeText(value);
+}
+
+function escapeCssString(value: string | null | undefined): string {
+  return (value ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, " ");
 }
 
 function serializeScriptJson(value: unknown): string {
