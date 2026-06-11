@@ -6,6 +6,7 @@ out/
 coverage/
 *.tsbuildinfo
 .generated-videos/
+coordination/.last-*.txt
 
 .env
 .env.local

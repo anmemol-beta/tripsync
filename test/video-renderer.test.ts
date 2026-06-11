@@ -105,14 +105,16 @@ describe("video job HTML fallback renderer", () => {
     expect(html).toContain("width: 1080px");
     expect(html).toContain("height: 1920px");
     expect(html).toContain("Tokyo 5/26-5/30 recap");
-    expect(html).toContain("/assets/demo/photos/");
+    expect(html).toContain("<video src=\"http://localhost:4000/assets/demo/videos/");
+    expect(html).toContain("playing real travel clips");
     expect(html).toContain("Start recap with audio");
     expect(html).toContain("data-audio-state");
     expect(html).toContain("data-soundtrack");
     expect(html).toContain("http://test.local/assets/music/");
     expect(html).toContain("popup-layer");
     expect(html).toContain("data-popup-index=\"0\"");
-    expect(html).toContain("QR ready");
+    expect(html).not.toContain("QR ready");
+    expect(html).toContain("real clips");
     expect(html).toContain("const sceneTimeline");
     expect(html).toContain("data-scene-index=\"0\"");
 

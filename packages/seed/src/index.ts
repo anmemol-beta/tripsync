@@ -10,6 +10,7 @@ import {
   type PhotoDoc,
   type TicketDoc,
   type TripDoc,
+  type VideoJobDoc,
 } from "@tripsync/schema";
 
 export const BOSTON_CREW_TRIP_ID = "trip_tokyo_2026_05";
@@ -18,7 +19,8 @@ export const BOSTON_CREW_GROUP_ID = "grp_boston_crew";
 const ISO_NOW = "2026-05-11T00:00:00-04:00";
 const API_BASE = "http://localhost:4000";
 const DEMO_ASSET_BASE = `${API_BASE}/assets/demo`;
-const DEMO_VIDEO_PATH = path.resolve(process.cwd(), "apps/api/assets/demo/videos/uploaded-trip-highlights.mp4");
+const demoVideoPath = (fileName: string) =>
+  path.resolve(process.cwd(), "apps/api/assets/demo/videos", fileName);
 
 const TRIP: TripDoc = {
   _id: BOSTON_CREW_TRIP_ID,
@@ -66,126 +68,126 @@ const MESSAGES: MessageDoc[] = [
     _id: "msg_001",
     trip_id: BOSTON_CREW_TRIP_ID,
     author: "seo",
-    body: "May 26-30 is locked. I want the recap to use the real photos and clips we already saved, not generic city shots.",
+    body: "May 26-30 still works for everyone, right? I already miss the road clip where we were half asleep and still pretending we had a plan.",
     created_at: "2026-05-10T20:00:00-04:00",
   },
   {
     _id: "msg_002",
     trip_id: BOSTON_CREW_TRIP_ID,
     author: "jamie",
-    body: "I'm in. I added the tennis court warm-up and beach walk photos because those feel the most like us.",
+    body: "Yes. Please keep the clip outside the cafe too. Min looking at the phone like our whole trip depended on one text is very on brand.",
     created_at: "2026-05-10T20:02:00-04:00",
   },
   {
     _id: "msg_003",
     trip_id: BOSTON_CREW_TRIP_ID,
     author: "min",
-    body: "I forwarded the flight, rental, Getty, and Antelope confirmations. Please keep the QR and order numbers easy to open.",
+    body: "Excuse me, I was checking if the place was actually open. Also add the tree clip. That one feels like the poster frame.",
     created_at: "2026-05-10T20:03:00-04:00",
   },
   {
     _id: "msg_004",
     trip_id: BOSTON_CREW_TRIP_ID,
     author: "agent",
-    body: "Trip packet saved\n1. Dates: May 26-30, 2026\n2. Members: Seo, Jamie, Min\n3. Ready sections: next plan, ticket QR records, receipts, shared split, photos, video clip, and music",
+    body: "Recap direction saved\n1. Keep the real travel clips first\n2. Use photos only as quick texture\n3. Match the edit to a random music track\n4. Keep the friend-chat captions light",
     created_at: "2026-05-10T20:04:00-04:00",
   },
   {
     _id: "msg_005",
     trip_id: BOSTON_CREW_TRIP_ID,
     author: "seo",
-    body: "Can you use our high-rated food and beach memories to shape the route? I want the recap to feel personal.",
+    body: "Do not make it look like a feature tour. I want it to feel like we just found the video in our camera roll.",
     created_at: "2026-05-10T20:07:00-04:00",
   },
   {
     _id: "msg_006",
     trip_id: BOSTON_CREW_TRIP_ID,
     author: "agent",
-    body: "Recommended route\n1. Morning activity beat from the tennis photo\n2. Food table beat from the stew and lobster shots\n3. Quiet walk beat from the beach clip\n4. Golden-hour close with the vertical photos",
+    body: "Travel edit outline\n1. Road and window movement to open\n2. Cafe check-in and friend clips in the middle\n3. Food photos as fast flashes\n4. Walking clip and final stills to close",
     created_at: "2026-05-10T20:08:00-04:00",
   },
   {
     _id: "msg_007",
     trip_id: BOSTON_CREW_TRIP_ID,
     author: "jamie",
-    body: "After we land, what do we need first? Put the flight, rental pickup, Getty time, and Antelope booking in one place.",
+    body: "The road footage is shaky but good shaky. It feels like we were actually there, not like a polished ad.",
     created_at: "2026-05-10T20:10:00-04:00",
   },
   {
     _id: "msg_008",
     trip_id: BOSTON_CREW_TRIP_ID,
     author: "agent",
-    body: "Next plan updated\n1. Flight arrival and first transfer\n2. Rental pickup confirmation\n3. Getty entry window\n4. Antelope booking time and QR",
+    body: "I will keep that movement. The first half can stay mostly video, with captions coming in like chat bubbles instead of title cards.",
     created_at: "2026-05-10T20:11:00-04:00",
   },
   {
     _id: "msg_009",
     trip_id: BOSTON_CREW_TRIP_ID,
     author: "min",
-    body: "Can you keep the ticket confirmations handy? I don't want to search PDFs when someone asks for a QR.",
+    body: "If my face is in there, use the clip where I look useful, not the one where I am clearly lost.",
     created_at: "2026-05-10T20:13:00-04:00",
   },
   {
     _id: "msg_010",
     trip_id: BOSTON_CREW_TRIP_ID,
-    author: "agent",
-    body: "Ticket QR records saved\n1. Delta flight PDF with boarding QR text\n2. Hertz rental confirmation L1101312472\n3. Getty order 2525775\n4. Antelope booking 266145927",
+    author: "jamie",
+    body: "Too late, the lost one is funnier. But put the cafe sign before it so people know we were at least near food.",
     created_at: "2026-05-10T20:14:00-04:00",
   },
   {
     _id: "msg_011",
     trip_id: BOSTON_CREW_TRIP_ID,
     author: "seo",
-    body: "Jamie paid the big booking, I paid the seafood receipt, and Min added another dinner receipt plus transit. Can you tell us who owes whom?",
+    body: "Food flashes should be quick. Lobster, stew, dinner table, then back to us walking. No long slideshow.",
     created_at: "2026-05-10T20:16:00-04:00",
   },
   {
     _id: "msg_012",
     trip_id: BOSTON_CREW_TRIP_ID,
     author: "agent",
-    body: "Split summary\n1. Jamie paid the large booking\n2. Seo paid the seafood receipt\n3. Min paid dinner receipt and transit\n4. Settlement: Min pays Jamie, and Seo pays Jamie",
+    body: "Got it. Video will carry the edit; photos will only hit on the beat for food and small details.",
     created_at: "2026-05-10T20:17:00-04:00",
   },
   {
     _id: "msg_013",
     trip_id: BOSTON_CREW_TRIP_ID,
     author: "jamie",
-    body: "I added the tennis, beach, stew, lobster, and vertical travel photos. Please group them by moment so the video does not feel random.",
+    body: "Can the ending be the walking clip? It feels like the part where everyone is tired but nobody wants to go home.",
     created_at: "2026-05-10T20:19:00-04:00",
   },
   {
     _id: "msg_014",
     trip_id: BOSTON_CREW_TRIP_ID,
-    author: "agent",
-    body: "Photo set organized\n1. Activity: tennis court\n2. Coast: beach walk\n3. Food: stew, lobster, dinner table\n4. Vertical details: travel stills for transitions\n5. Close: final night frame",
+    author: "min",
+    body: "Yes, and please do not put a giant caption over the faces. Small bubbles are fine. Let the clips breathe.",
     created_at: "2026-05-10T20:20:00-04:00",
   },
   {
     _id: "msg_015",
     trip_id: BOSTON_CREW_TRIP_ID,
     author: "min",
-    body: "For the recap, leave out anything boring. Keep the uploaded highlight clip, the best food photos, one QR beat, one receipt beat, and the final split.",
+    body: "Also choose a song randomly from the ones we dropped in. I do not want to hear the same track every render.",
     created_at: "2026-05-10T20:22:00-04:00",
   },
   {
     _id: "msg_016",
     trip_id: BOSTON_CREW_TRIP_ID,
     author: "agent",
-    body: "Video mix prepared\n1. Uploaded clip is trimmed to the strongest section\n2. Photos can be included or removed\n3. Ticket QR, receipt, and split beats can pop up as bubbles\n4. A random music track is selected for the 60-second vertical render",
+    body: "60-second travel cut prepared\n1. Real clips first\n2. Food and place photos as beat cuts\n3. Friend-chat bubbles only\n4. Random soundtrack selected at render time",
     created_at: "2026-05-10T20:23:00-04:00",
   },
   {
     _id: "msg_017",
     trip_id: BOSTON_CREW_TRIP_ID,
     author: "seo",
-    body: "Render the 60-second version with the uploaded clip, tennis, beach, stew, lobster, the QR cards, receipts, split summary, and a music track.",
+    body: "Render that version. More motion, less explaining. Make it feel like something we would actually post.",
     created_at: "2026-05-10T20:25:00-04:00",
   },
   {
     _id: "msg_018",
     trip_id: BOSTON_CREW_TRIP_ID,
     author: "agent",
-    body: "Playable recap created\n1. Format: vertical 9:16\n2. Duration: 60 seconds\n3. Source: uploaded clip, real photos, ticket QR records, receipt images, split summary, chat bubbles, and music\n4. Output: ready to play",
+    body: "Playable travel recap is ready: vertical 9:16, mostly video, music on, and only lightweight friend-chat bubbles over the moments.",
     created_at: "2026-05-10T20:26:00-04:00",
   },
 ];
@@ -689,24 +691,93 @@ const PHOTOS: PhotoDoc[] = [
 ];
 
 const MEDIA_ASSETS: MediaAssetDoc[] = [
+  travelClip("media_forest_drive_window", "seo", "forest-drive-window.mp4", 6, "Road clip from the car window", "2026-05-10T20:21:00-04:00"),
+  travelClip("media_forest_road_pass", "jamie", "forest-road-pass.mp4", 7, "Passing the trees on the way in", "2026-05-10T20:22:00-04:00"),
+  travelClip("media_cafe_checkin", "min", "cafe-checkin.mp4", 7, "Cafe check-in outside the grill", "2026-05-10T20:23:00-04:00"),
+  travelClip("media_friends_under_tree", "seo", "friends-under-tree.mp4", 8, "Friends under the red tree", "2026-05-10T20:24:00-04:00"),
+  travelClip("media_walking_campus", "jamie", "walking-campus.mp4", 7, "Walking after the long stop", "2026-05-10T20:25:00-04:00"),
+  travelClip("media_neighborhood_walk", "min", "neighborhood-walk.mp4", 7, "Neighborhood walk between stops", "2026-05-10T20:26:00-04:00"),
+  travelClip("media_street_crossing", "seo", "street-crossing.mp4", 7, "Street crossing on the way back", "2026-05-10T20:27:00-04:00"),
+  travelClip("media_grill_arrival", "jamie", "grill-arrival.mp4", 6, "Arriving at the lunch spot", "2026-05-10T20:28:00-04:00"),
+];
+
+const VIDEO_JOBS: VideoJobDoc[] = [
   {
-    _id: "media_uploaded_trip_highlights",
+    _id: "video_travel_recap_seed",
     trip_id: BOSTON_CREW_TRIP_ID,
-    member_handle: "seo",
-    kind: "video",
-    original_name: "uploaded-trip-highlights.mp4",
-    mime_type: "video/mp4",
-    file_url: `${DEMO_ASSET_BASE}/videos/uploaded-trip-highlights.mp4`,
-    file_path: DEMO_VIDEO_PATH,
-    duration_seconds: 12,
-    trim_start_seconds: 0,
-    trim_duration_seconds: 10,
-    caption: "Uploaded highlight clip from the group chat",
-    status: "ready",
-    created_at: "2026-05-10T20:21:00-04:00",
-    updated_at: "2026-05-10T20:21:00-04:00",
+    requested_by: "seo",
+    status: "brief_ready",
+    format: "vertical_9_16",
+    duration_seconds: 60,
+    title: "May trip camera roll",
+    narrative: "A 60-second travel recap built mostly from the real clips the group uploaded.",
+    scenes: [
+      {
+        id: "scene_road_open",
+        title: "Road open",
+        source: "message",
+        prompt: "Start with the moving road clips so the recap feels like a real trip, not a slideshow.",
+        duration_seconds: 16,
+        asset_refs: ["media_forest_drive_window", "media_forest_road_pass"],
+      },
+      {
+        id: "scene_friend_middle",
+        title: "Friends outside",
+        source: "message",
+        prompt: "Use the cafe and red-tree clips with small friend-chat bubbles.",
+        duration_seconds: 20,
+        asset_refs: ["media_cafe_checkin", "media_friends_under_tree"],
+      },
+      {
+        id: "scene_food_flash",
+        title: "Food flashes",
+        source: "photo",
+        prompt: "Cut in food photos quickly on the beat, then return to motion.",
+        duration_seconds: 8,
+        asset_refs: ["photo_lobster_table", "photo_paris_stew"],
+      },
+      {
+        id: "scene_walk_close",
+        title: "Walking close",
+        source: "message",
+        prompt: "Close with walking clips so it feels like the group is still moving.",
+        duration_seconds: 16,
+        asset_refs: ["media_walking_campus", "media_street_crossing", "media_grill_arrival"],
+      },
+    ],
+    output_url: null,
+    failure_reason: null,
+    created_at: "2026-05-10T20:29:00-04:00",
+    updated_at: "2026-05-10T20:29:00-04:00",
   },
 ];
+
+function travelClip(
+  id: string,
+  memberHandle: string,
+  fileName: string,
+  durationSeconds: number,
+  caption: string,
+  createdAt: string,
+): MediaAssetDoc {
+  return {
+    _id: id,
+    trip_id: BOSTON_CREW_TRIP_ID,
+    member_handle: memberHandle,
+    kind: "video",
+    original_name: fileName,
+    mime_type: "video/mp4",
+    file_url: `${DEMO_ASSET_BASE}/videos/${fileName}`,
+    file_path: demoVideoPath(fileName),
+    duration_seconds: durationSeconds,
+    trim_start_seconds: 0,
+    trim_duration_seconds: durationSeconds,
+    caption,
+    status: "ready",
+    created_at: createdAt,
+    updated_at: createdAt,
+  };
+}
 
 export async function seedBostonCrew(db: Db): Promise<void> {
   await db.collection<TripDoc>(COLLECTIONS.trips).insertOne(TRIP);
@@ -717,6 +788,7 @@ export async function seedBostonCrew(db: Db): Promise<void> {
   await db.collection<ExpenseDoc>(COLLECTIONS.expenses).insertMany(EXPENSES);
   await db.collection<PhotoDoc>(COLLECTIONS.photos).insertMany(PHOTOS);
   await db.collection<MediaAssetDoc>(COLLECTIONS.mediaAssets).insertMany(MEDIA_ASSETS);
+  await db.collection<VideoJobDoc>(COLLECTIONS.videoJobs).insertMany(VIDEO_JOBS);
 }
 
 export const bostonCrewFixture = {
@@ -728,4 +800,5 @@ export const bostonCrewFixture = {
   expenses: EXPENSES,
   photos: PHOTOS,
   mediaAssets: MEDIA_ASSETS,
+  videoJobs: VIDEO_JOBS,
 };

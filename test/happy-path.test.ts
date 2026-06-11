@@ -319,11 +319,12 @@ describe("happy path: hotel proposal -> votes -> decision", () => {
       .collection<VideoJobDoc>(COLLECTIONS.videoJobs)
       .find({ trip_id: BOSTON_CREW_TRIP_ID })
       .toArray();
-    expect(jobs).toHaveLength(1);
-    expect(jobs[0]?.status).toBe("brief_ready");
-    expect(jobs[0]?.format).toBe("vertical_9_16");
-    expect(jobs[0]?.duration_seconds).toBe(60);
-    expect(jobs[0]?.scenes).toHaveLength(3);
+    expect(jobs).toHaveLength(2);
+    const createdJob = jobs.find((job) => job._id !== "video_travel_recap_seed");
+    expect(createdJob?.status).toBe("brief_ready");
+    expect(createdJob?.format).toBe("vertical_9_16");
+    expect(createdJob?.duration_seconds).toBe(60);
+    expect(createdJob?.scenes).toHaveLength(3);
 
     const history = await db
       .collection<HistoryDoc>(COLLECTIONS.history)

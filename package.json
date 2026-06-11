@@ -12,6 +12,9 @@
     "typecheck": "tsc -b && pnpm --filter @tripsync/web typecheck",
     "test": "vitest run",
     "test:happy-path": "vitest run test/happy-path.test.ts",
+    "agent:ask": "node scripts/ask-agent.mjs",
+    "check:coordination": "node scripts/check-coordination.mjs",
+    "hooks:install": "git config core.hooksPath .githooks",
     "smoke:mcp": "node scripts/mcp-smoke.mjs",
     "seed:memories": "node scripts/seed-vector-memories.mjs",
     "smoke:vector": "node scripts/vector-smoke.mjs"

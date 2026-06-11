@@ -318,8 +318,8 @@ async function loadRenderContext(
     db
       .collection<MediaAssetDoc>(COLLECTIONS.mediaAssets)
       .find({ trip_id: job.trip_id, kind: "video", status: "ready" })
-      .sort({ created_at: -1 })
-      .limit(4)
+      .sort({ created_at: 1, _id: 1 })
+      .limit(12)
       .toArray()
       .catch(() => []),
   ]);
@@ -396,16 +396,34 @@ async function renderWebmArtifact(db: Db, context: RenderContext, startedAt: str
 
 async function prepareRenderInputs(context: RenderContext, tempDir: string): Promise<RenderInput[]> {
   const duration = Math.min(context.job.duration_seconds, 60);
-  const videoInputs = context.mediaAssets.slice(0, 3).map((asset) => ({
-    kind: "video" as const,
-    path: asset.file_path,
-    trimStart: asset.trim_start_seconds,
-    duration: Math.min(asset.trim_duration_seconds, 10),
-  }));
-  const videoDuration = videoInputs.reduce((sum, input) => sum + input.duration, 0);
+  const videoInputs: RenderInput[] = [];
+  const videoTargetDuration = Math.max(0, duration - 4);
+  let videoDuration = 0;
+  for (const asset of context.mediaAssets) {
+    if (videoDuration >= videoTargetDuration) break;
+    try {
+      await stat(asset.file_path);
+    } catch {
+      continue;
+    }
+    const remaining = duration - videoDuration;
+    const clipDuration = Math.min(asset.trim_duration_seconds, remaining, 9);
+    if (clipDuration <= 0.5) continue;
+    videoInputs.push({
+      kind: "video",
+      path: asset.file_path,
+      trimStart: asset.trim_start_seconds,
+      duration: clipDuration,
+    });
+    videoDuration += clipDuration;
+  }
   const photoInputs: RenderInput[] = [];
-  const photos = context.photos.slice(0, 6);
-  const photoDuration = Math.max(3, (duration - videoDuration) / Math.max(photos.length, 1));
+  const remainingPhotoTime = Math.max(0, duration - videoDuration);
+  const photoCount = Math.min(context.photos.length, videoInputs.length ? 4 : 6);
+  const photos = context.photos.slice(0, photoCount);
+  const photoDuration = videoInputs.length
+    ? Math.min(2, Math.max(1.1, remainingPhotoTime / Math.max(photos.length, 1)))
+    : Math.max(3, remainingPhotoTime / Math.max(photos.length, 1));
   for (const [index, photo] of photos.entries()) {
     try {
       const res = await fetch(photo.url);
@@ -519,11 +537,13 @@ async function runFfmpeg(
     outputPath,
   );
 
-  await execFileAsync("ffmpeg", args, { timeout: 120_000, maxBuffer: 1024 * 1024 });
+  await execFileAsync("ffmpeg", args, { timeout: 180_000, maxBuffer: 1024 * 1024 });
 }
 
 function buildRecapHtml(context: RenderContext): string {
-  const photoTiles = context.photos.slice(0, 6);
+  const visualTiles = context.mediaAssets.length
+    ? context.mediaAssets.slice(0, 8).map((asset) => renderMediaAsset(asset))
+    : context.photos.slice(0, 6).map((photo) => renderPhoto(photo));
   const includedScenes = getIncludedScenes(context);
   const sceneCards = includedScenes.slice(0, 5);
   const messageHighlights = context.messages.slice(-4);
@@ -657,7 +677,8 @@ function buildRecapHtml(context: RenderContext): string {
       transition: opacity 420ms linear;
     }
     .photo.is-visible { opacity: 1; z-index: 2; }
-    .photo img {
+    .photo img,
+    .photo video {
       width: 100%;
       height: 100%;
       object-fit: cover;
@@ -848,8 +869,8 @@ function buildRecapHtml(context: RenderContext): string {
     </section>
 
     <section class="photos" aria-label="Trip photos">
-      <div class="motion-label"><span class="motion-dot"></span>playing visual recap</div>
-      ${photoTiles.map((photo, index) => renderPhoto(photo, index)).join("")}
+      <div class="motion-label"><span class="motion-dot"></span>playing real travel clips</div>
+      ${visualTiles.map((tile, index) => tile.replace("class=\"photo\"", `class="photo${index === 0 ? " is-visible" : ""}"`)).join("")}
     </section>
     <section class="popup-layer" aria-label="Live recap callouts">
       ${popups.map((popup, index) => `
@@ -879,8 +900,8 @@ function buildRecapHtml(context: RenderContext): string {
       </article>
       <article class="stat">
         ${context.job.duration_seconds}s vertical render<br />
-        ${context.mediaAssets.length} video clips, ${context.photos.length} photos<br />
-        ${context.events.length} plans, ${context.tickets.length} tickets${context.expenses.length ? `<br />Settlement included` : ""}${memory ? `<br />Top memory: ${escapeText(memory.title)}` : ""}<br />${escapeText(selectedFacts)}
+        ${context.mediaAssets.length} travel clips, ${context.photos.length} quick photo cuts<br />
+        Music: ${escapeText(path.basename(context.soundtrackUrl))}${memory ? `<br />Top memory: ${escapeText(memory.title)}` : ""}<br />${escapeText(selectedFacts)}
       </article>
     </section>
   </main>
@@ -973,60 +994,59 @@ function buildRecapHtml(context: RenderContext): string {
 }
 
 function buildViralPopups(context: RenderContext): Array<{ start: number; duration: number; top: number; icon: string; title: string; body: string }> {
-  const message = context.messages.find((item) => item.author !== "agent" && /ticket|photo|paid|recap|landing/i.test(item.body));
-  const ticket = context.tickets.find((item) => item.qr_data);
-  const expense = context.expenses.find((item) => item.receipt_url);
-  const transfer = summarizeInlineTransfer(context.expenses);
-  const clip = context.mediaAssets[0];
-  const photo = context.photos[0];
+  const friendMessages = context.messages.filter((item) => item.author !== "agent");
+  const firstClip = context.mediaAssets[0];
+  const middleClip = context.mediaAssets[Math.floor(context.mediaAssets.length / 2)];
+  const lastClip = context.mediaAssets.at(-1);
+  const photo = context.photos.find((item) => /food|lobster|stew|dinner/i.test(item.caption ?? item.place_name ?? "")) ?? context.photos[0];
   return [
     {
       start: 2,
       duration: 4.2,
       top: 1160,
-      icon: "💬",
-      title: `${message?.author ?? "seo"} said`,
-      body: cleanPopupText(message?.body ?? "Keep the best trip moments grouped by place."),
+      icon: "CHAT",
+      title: `${friendMessages[0]?.author ?? "seo"} said`,
+      body: cleanPopupText(friendMessages[0]?.body ?? "Keep the road clip first."),
     },
     {
       start: 8,
       duration: 4.2,
       top: 1010,
-      icon: "🎟",
-      title: ticket ? `${ticket.vendor} QR ready` : "Ticket QR ready",
-      body: ticket?.qr_data ? `Confirmation locked: ${shorten(ticket.qr_data, 48)}` : "Parsed ticket data is saved.",
+      icon: "ROAD",
+      title: firstClip?.caption ?? "Road clip",
+      body: "Open with movement so it feels like the trip is starting.",
     },
     {
       start: 15,
       duration: 4.2,
       top: 1220,
-      icon: "🧾",
-      title: expense ? `${expense.description}` : "Receipt parsed",
-      body: expense ? `${expense.payer} paid ${expense.amount.toLocaleString()} ${expense.currency}` : "Shared receipt added to split.",
+      icon: "LOL",
+      title: `${friendMessages[2]?.author ?? "min"} said`,
+      body: cleanPopupText(friendMessages[2]?.body ?? "Use the clip where I look useful."),
     },
     {
       start: 23,
       duration: 4.2,
       top: 1080,
-      icon: "💸",
-      title: "Split settled",
-      body: transfer,
+      icon: "FOOD",
+      title: photo?.place_name ?? "Food flash",
+      body: "Quick food cuts on the beat, then back to the clips.",
     },
     {
       start: 32,
       duration: 4.2,
       top: 1180,
-      icon: "🎬",
-      title: clip ? "Uploaded clip trimmed" : "Video clip ready",
-      body: clip ? `${clip.caption ?? clip.original_name} · ${clip.trim_duration_seconds}s` : "Chat video becomes part of the recap.",
+      icon: "CLIP",
+      title: middleClip?.caption ?? "Friend clip",
+      body: "Small bubbles, no giant title over faces.",
     },
     {
       start: 43,
       duration: 4.6,
       top: 1020,
-      icon: "✨",
-      title: photo?.place_name ?? "Trip moment",
-      body: `${context.photos.length} photos + ${path.basename(context.soundtrackUrl)} soundtrack`,
+      icon: "END",
+      title: lastClip?.caption ?? "Walking close",
+      body: `${context.mediaAssets.length} real clips + ${path.basename(context.soundtrackUrl)}`,
     },
   ];
 }
@@ -1201,11 +1221,10 @@ const SPACE_GLYPH = FONT_5X7[" "]!;
 function buildSelectedFacts(context: RenderContext): string {
   const facts = [
     path.basename(context.soundtrackUrl),
-    context.events[0]?.title,
-    context.tickets[0]?.vendor,
-    context.expenses[0]?.description,
+    `${context.mediaAssets.length} clips`,
+    context.photos[0]?.place_name,
   ].filter(Boolean);
-  return facts.length ? `Mix: ${facts.join(" · ")}` : "Mix: photos and scenes";
+  return facts.length ? `Travel mix: ${facts.join(" · ")}` : "Travel mix: video clips";
 }
 
 async function chooseRandomSoundtrack(publicBaseUrl: string): Promise<{ path: string; url: string }> {
@@ -1264,10 +1283,19 @@ function buildSceneTimeline(job: VideoJobDoc, selectedSceneIds: Set<string> | nu
   });
 }
 
-function renderPhoto(photo: PhotoLikeDoc, index: number): string {
+function renderMediaAsset(asset: MediaAssetDoc): string {
+  const caption = asset.caption ?? asset.original_name;
+  return `
+    <figure class="photo">
+      <video src="${escapeAttr(asset.file_url)}" muted autoplay loop playsinline preload="metadata"></video>
+      <figcaption class="caption">${escapeText(caption)}</figcaption>
+    </figure>`;
+}
+
+function renderPhoto(photo: PhotoLikeDoc): string {
   const caption = photo.caption ?? photo.place_name ?? "Trip moment";
   return `
-    <figure class="photo${index === 0 ? " is-visible" : ""}">
+    <figure class="photo">
       <img src="${escapeAttr(photo.url)}" alt="" />
       <figcaption class="caption">${escapeText(caption)}</figcaption>
     </figure>`;

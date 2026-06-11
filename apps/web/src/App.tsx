@@ -144,7 +144,7 @@ type TripState = {
 };
 
 type ToolCall = { name: string };
-type ToolStep = { name: string; status: "completed" | "failed"; summary: string };
+type ToolStep = { name: string; status: "completed" | "failed" | "running"; summary: string };
 type AppView = "trip" | "video" | "chat";
 type FeaturePanel = "plans" | "tickets" | "split" | "photos";
 type VideoSelection = {
@@ -170,9 +170,11 @@ function App() {
     photos: [],
     events: [],
     tickets: [],
-    settlement: true,
+    settlement: false,
   });
   const [selectionTripId, setSelectionTripId] = useState<string | null>(null);
+  const [renderingJobId, setRenderingJobId] = useState<string | null>(null);
+  const [recapState, setRecapState] = useState<"idle" | "loading" | "ready" | "playing">("idle");
 
   async function refresh() {
     const res = await fetch(`${API_BASE}/trip/${TRIP_ID}/state`);
@@ -194,9 +196,9 @@ function App() {
     setVideoSelection({
       scenes: state.video_jobs[0]?.scenes.map((scene) => scene.id) ?? [],
       photos: state.photos.slice(0, 6).map((photo) => photo._id),
-      events: state.events.map((event) => event._id),
-      tickets: state.tickets.map((ticket) => ticket._id),
-      settlement: true,
+      events: [],
+      tickets: [],
+      settlement: false,
     });
     setSelectionTripId(state.trip._id);
   }, [selectionTripId, state]);
@@ -289,8 +291,10 @@ function App() {
 
   async function renderVideoJob(jobId: string, include?: VideoSelection) {
     setBusy(true);
+    setRenderingJobId(jobId);
+    setRecapState("loading");
     setError(null);
-    setToolSteps([{ name: "render_video", status: "completed", summary: "building playable MP4 video" }]);
+    setToolSteps([{ name: "render_video", status: "running", summary: "mixing real travel clips with music" }]);
     try {
       const res = await fetch(`${API_BASE}/video-jobs/${jobId}/render`, {
         method: "POST",
@@ -298,28 +302,31 @@ function App() {
         body: include ? JSON.stringify({ include }) : undefined,
       });
       if (!res.ok) throw new Error(`render failed: ${res.status}`);
+      setToolSteps([{ name: "render_video", status: "completed", summary: "playable travel recap is ready" }]);
       await refresh();
+      setRecapState("ready");
     } catch (err) {
+      setToolSteps([{ name: "render_video", status: "failed", summary: "render failed" }]);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
+      setRenderingJobId(null);
     }
   }
 
   const openProposal = state?.proposals.find((proposal) => proposal.status === "open");
   const latestVideo = state?.video_jobs[0];
   const hasPlayableVideo = Boolean(latestVideo?.output_url?.match(/\/video\.(mp4|webm)$/));
+  const isGeneratingVideo = Boolean(latestVideo && (renderingJobId === latestVideo._id || latestVideo.status === "rendering"));
   const activitySteps = busy ? runningActivity(toolSteps) : toolSteps;
   const nextEvent = state?.events.find((event) => event.status === "open");
   const firstTicket = state?.tickets.find((ticket) => ticket.qr_data);
   const firstTransfer = state?.settlement.transfers[0];
   const firstPhoto = state?.photos[0];
   const selectedCount =
+    (state?.media_assets.length ?? 0) +
     videoSelection.scenes.length +
-    videoSelection.photos.length +
-    videoSelection.events.length +
-    videoSelection.tickets.length +
-    (videoSelection.settlement ? 1 : 0);
+    videoSelection.photos.length;
   const memberName = useMemo(() => {
     const found = state?.members.find((member) => member.user_handle === author);
     return found?.display_name ?? author;
@@ -462,23 +469,25 @@ function App() {
 
         {activeView === "video" && (
           <>
-            <section className="video-band">
+            <section className={`video-band ${isGeneratingVideo ? "is-generating" : ""}`}>
               <div>
                 <p className="eyebrow">Video studio</p>
                 <h2>{latestVideo ? latestVideo.title : "Travel video brief"}</h2>
-                <p>{latestVideo ? `${selectedCount} elements selected for a 60s render.` : "Create a brief first, then choose what goes into the video."}</p>
+                <p>{latestVideo ? `${selectedCount} travel clips, scenes, and photo cuts selected for a 60s render.` : "Create a brief first, then choose what goes into the video."}</p>
               </div>
               {latestVideo ? (
                 <div className="video-actions">
-                  <span className={`pill ${latestVideo.status}`}>{latestVideo.status.replace("_", " ")}</span>
+                  <span className={`pill ${isGeneratingVideo ? "rendering" : latestVideo.status}`}>
+                    {isGeneratingVideo ? "generating" : latestVideo.status.replace("_", " ")}
+                  </span>
                   <button
-                    className="icon-button"
+                    className={`icon-button ${isGeneratingVideo ? "is-busy" : ""}`}
                     onClick={() => renderVideoJob(latestVideo._id, videoSelection)}
-                    disabled={busy}
-                    aria-label="Render selected video"
-                    title="Render selected video"
+                    disabled={busy || isGeneratingVideo}
+                    aria-label="Generate travel video"
+                    title="Generate travel video"
                   >
-                    <CirclePlay size={18} />
+                    {isGeneratingVideo ? <RefreshCw className="spin" size={18} /> : <CirclePlay size={18} />}
                   </button>
                   {latestVideo.status === "ready" && latestVideo.output_url && hasPlayableVideo && (
                     <a
@@ -511,6 +520,32 @@ function App() {
             </section>
 
             {latestVideo && (
+              <section className={`generation-panel ${isGeneratingVideo ? "is-active" : hasPlayableVideo ? "is-ready" : ""}`}>
+                <div className="generation-orbit" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <div>
+                  <strong>
+                    {isGeneratingVideo
+                      ? "Generating travel recap"
+                      : hasPlayableVideo
+                        ? "Travel recap ready"
+                        : "Ready to generate"}
+                  </strong>
+                  <span>
+                    {isGeneratingVideo
+                      ? "Using the uploaded travel clips first, then adding quick photo cuts and music."
+                      : hasPlayableVideo
+                        ? `${recapState === "playing" ? "Playing" : "Playable"} 60-second video is available below.`
+                        : "Tap the play button to render the 60-second travel video."}
+                  </span>
+                </div>
+              </section>
+            )}
+
+            {latestVideo && (
               <VideoStudio
                 state={state}
                 latestVideo={latestVideo}
@@ -540,7 +575,17 @@ function App() {
             )}
 
             {latestVideo?.output_url && hasPlayableVideo && (
-              <video className="recap-player" src={latestVideo.output_url} controls playsInline preload="metadata" />
+              <video
+                className="recap-player"
+                src={latestVideo.output_url}
+                controls
+                playsInline
+                preload="metadata"
+                onLoadStart={() => setRecapState("loading")}
+                onCanPlay={() => setRecapState("ready")}
+                onPlay={() => setRecapState("playing")}
+                onPause={() => setRecapState("ready")}
+              />
             )}
 
             <section className="trace" aria-label="Agent activity">
@@ -877,38 +922,6 @@ function VideoStudio({
         selected={selection.photos}
         onToggle={(id) => onChange({ ...selection, photos: toggleId(selection.photos, id) })}
       />
-      <ToggleGroup
-        title="Trip facts"
-        items={[
-          ...state.events.map((event) => ({
-            id: event._id,
-            title: event.title,
-            meta: "plan",
-          })),
-          ...state.tickets.map((ticket) => ({
-            id: ticket._id,
-            title: ticket.vendor,
-            meta: "ticket",
-          })),
-        ]}
-        selected={[...selection.events, ...selection.tickets]}
-        onToggle={(id) => {
-          const isTicket = state.tickets.some((ticket) => ticket._id === id);
-          onChange(
-            isTicket
-              ? { ...selection, tickets: toggleId(selection.tickets, id) }
-              : { ...selection, events: toggleId(selection.events, id) },
-          );
-        }}
-      />
-      <label className="check-row">
-        <input
-          type="checkbox"
-          checked={selection.settlement}
-          onChange={(event) => onChange({ ...selection, settlement: event.target.checked })}
-        />
-        <span>Include settlement beat</span>
-      </label>
     </section>
   );
 }

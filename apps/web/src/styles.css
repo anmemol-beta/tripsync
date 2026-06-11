@@ -207,6 +207,7 @@ select {
 
 .status-band div,
 .video-band,
+.generation-panel,
 .proposal,
 .scene-strip article,
 .artifact-card,
@@ -244,6 +245,11 @@ select {
   padding: 12px;
   border-color: #9ec6ba;
   background: #eef8f4;
+}
+
+.video-band.is-generating {
+  border-color: #e07856;
+  background: #fff3ea;
 }
 
 .video-band h2 {
@@ -295,6 +301,89 @@ select {
 .pill.failed {
   border-color: #bd6c5b;
   color: #883829;
+}
+
+.pill.rendering {
+  border-color: #d36b43;
+  color: #9a3d1e;
+}
+
+.icon-button.is-busy {
+  background: #e07856;
+  color: #111318;
+}
+
+.generation-panel {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 11px;
+  align-items: center;
+  padding: 11px;
+}
+
+.generation-panel strong,
+.generation-panel span {
+  display: block;
+  line-height: 1.25;
+}
+
+.generation-panel strong {
+  color: #24211d;
+  font-size: 14px;
+}
+
+.generation-panel span {
+  margin-top: 3px;
+  color: #676259;
+  font-size: 12px;
+}
+
+.generation-panel.is-active {
+  border-color: #e07856;
+  background: #fff7ef;
+}
+
+.generation-panel.is-ready {
+  border-color: #9ec6ba;
+  background: #eef8f4;
+}
+
+.generation-orbit {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border: 2px solid rgba(224, 120, 86, 0.25);
+  border-top-color: #e07856;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+.generation-panel.is-ready .generation-orbit {
+  animation: none;
+  border-color: #2f6d64;
+}
+
+.generation-orbit span {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2f6d64;
+}
+
+.generation-orbit span:nth-child(1) {
+  top: 5px;
+  left: 19px;
+}
+
+.generation-orbit span:nth-child(2) {
+  right: 5px;
+  top: 19px;
+}
+
+.generation-orbit span:nth-child(3) {
+  bottom: 5px;
+  left: 19px;
 }
 
 .scene-strip {
