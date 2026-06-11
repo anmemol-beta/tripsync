@@ -56,6 +56,16 @@ const VoteBody = z.object({
   option_id: z.string(),
 });
 
+const RenderBody = z.object({
+  include: z.object({
+    scenes: z.array(z.string()).optional(),
+    photos: z.array(z.string()).optional(),
+    events: z.array(z.string()).optional(),
+    tickets: z.array(z.string()).optional(),
+    settlement: z.boolean().optional(),
+  }).optional(),
+}).optional();
+
 export function buildApp(deps: AppDeps): Hono {
   const app = new Hono();
 
@@ -104,12 +114,14 @@ export function buildApp(deps: AppDeps): Hono {
   app.post("/video-jobs/:id/render", async (c) => {
     const id = c.req.param("id");
     try {
+      const body = RenderBody.parse(await c.req.json().catch(() => undefined));
       const result = await renderVideoJob(
         deps.db,
         id,
         {
           publicBaseUrl: deps.publicBaseUrl ?? "http://localhost:4000",
           mode: deps.videoRenderMode,
+          include: body?.include,
         },
       );
       return c.json(result);

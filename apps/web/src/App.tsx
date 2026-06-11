@@ -6,10 +6,12 @@ import {
   CirclePlay,
   ExternalLink,
   Images,
+  MessageCircle,
   QrCode,
   ReceiptText,
   RefreshCw,
   Send,
+  SlidersHorizontal,
   Sparkles,
   X,
 } from "lucide-react";
@@ -127,6 +129,15 @@ type TripState = {
 
 type ToolCall = { name: string };
 type ToolStep = { name: string; status: "completed" | "failed"; summary: string };
+type AppView = "trip" | "video" | "chat";
+type FeaturePanel = "plans" | "tickets" | "split" | "photos";
+type VideoSelection = {
+  scenes: string[];
+  photos: string[];
+  events: string[];
+  tickets: string[];
+  settlement: boolean;
+};
 
 function App() {
   const [state, setState] = useState<TripState | null>(null);
@@ -135,6 +146,16 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toolSteps, setToolSteps] = useState<ToolStep[]>([]);
+  const [activeView, setActiveView] = useState<AppView>("trip");
+  const [activeFeature, setActiveFeature] = useState<FeaturePanel>("plans");
+  const [videoSelection, setVideoSelection] = useState<VideoSelection>({
+    scenes: [],
+    photos: [],
+    events: [],
+    tickets: [],
+    settlement: true,
+  });
+  const [selectionTripId, setSelectionTripId] = useState<string | null>(null);
 
   async function refresh() {
     const res = await fetch(`${API_BASE}/trip/${TRIP_ID}/state`);
@@ -150,6 +171,18 @@ function App() {
     }, 5000);
     return () => window.clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (!state || selectionTripId === state.trip._id) return;
+    setVideoSelection({
+      scenes: state.video_jobs[0]?.scenes.map((scene) => scene.id) ?? [],
+      photos: state.photos.slice(0, 6).map((photo) => photo._id),
+      events: state.events.map((event) => event._id),
+      tickets: state.tickets.map((ticket) => ticket._id),
+      settlement: true,
+    });
+    setSelectionTripId(state.trip._id);
+  }, [selectionTripId, state]);
 
   async function sendText(text: string) {
     if (!text.trim()) return;
@@ -211,12 +244,16 @@ function App() {
     }
   }
 
-  async function renderVideoJob(jobId: string) {
+  async function renderVideoJob(jobId: string, include?: VideoSelection) {
     setBusy(true);
     setError(null);
     setToolSteps([{ name: "render_video", status: "completed", summary: "building playable MP4 video" }]);
     try {
-      const res = await fetch(`${API_BASE}/video-jobs/${jobId}/render`, { method: "POST" });
+      const res = await fetch(`${API_BASE}/video-jobs/${jobId}/render`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: include ? JSON.stringify({ include }) : undefined,
+      });
       if (!res.ok) throw new Error(`render failed: ${res.status}`);
       await refresh();
     } catch (err) {
@@ -234,6 +271,12 @@ function App() {
   const firstTicket = state?.tickets.find((ticket) => ticket.qr_data);
   const firstTransfer = state?.settlement.transfers[0];
   const firstPhoto = state?.photos[0];
+  const selectedCount =
+    videoSelection.scenes.length +
+    videoSelection.photos.length +
+    videoSelection.events.length +
+    videoSelection.tickets.length +
+    (videoSelection.settlement ? 1 : 0);
   const memberName = useMemo(() => {
     const found = state?.members.find((member) => member.user_handle === author);
     return found?.display_name ?? author;
@@ -288,148 +331,176 @@ function App() {
         </div>
       </header>
 
-      <div className="phone-scroll">
-        <section className="status-band">
-          <Decision label="Hotel" value={state.trip.decisions.hotel?.label} />
-          <Decision label="Flight" value={state.trip.decisions.flight?.label} />
-          <Decision label="Activities" value={`${state.trip.decisions.activities.length} picked`} />
-        </section>
+      <nav className="view-tabs" aria-label="App sections">
+        <button className={activeView === "trip" ? "is-active" : ""} onClick={() => setActiveView("trip")}>
+          <CalendarDays size={15} />
+          <span>Trip</span>
+        </button>
+        <button className={activeView === "video" ? "is-active" : ""} onClick={() => setActiveView("video")}>
+          <SlidersHorizontal size={15} />
+          <span>Video</span>
+        </button>
+        <button className={activeView === "chat" ? "is-active" : ""} onClick={() => setActiveView("chat")}>
+          <MessageCircle size={15} />
+          <span>Chat</span>
+        </button>
+      </nav>
 
-        <section className="video-band">
-          <div>
-            <p className="eyebrow">Core output</p>
-            <h2>{latestVideo ? latestVideo.title : "Travel video brief"}</h2>
-            <p>{latestVideo ? latestVideo.narrative : "Agent turns the trip state into a vertical recap video plan."}</p>
-          </div>
-          {latestVideo ? (
-            <div className="video-actions">
-              <span className={`pill ${latestVideo.status}`}>{latestVideo.status.replace("_", " ")}</span>
-              {(latestVideo.status === "brief_ready" || latestVideo.status === "failed" || !hasPlayableVideo) && (
+      <div className="phone-scroll">
+        {activeView === "trip" && (
+          <>
+            <section className="status-band">
+              <Decision label="Hotel" value={state.trip.decisions.hotel?.label} />
+              <Decision label="Flight" value={state.trip.decisions.flight?.label} />
+              <Decision label="Activities" value={`${state.trip.decisions.activities.length} picked`} />
+            </section>
+
+            <section className="artifact-rail" aria-label="Trippo artifacts">
+              <ArtifactCard
+                icon={<CalendarDays size={15} />}
+                label="Next plan"
+                title={nextEvent?.title ?? "No event yet"}
+                meta={nextEvent ? shortDateTime(nextEvent.starts_at) : "Waiting"}
+                detail={nextEvent?.location ?? `${state.events.length} events`}
+                active={activeFeature === "plans"}
+                onClick={() => setActiveFeature("plans")}
+              />
+              <ArtifactCard
+                icon={<QrCode size={15} />}
+                label="Ticket QR"
+                title={firstTicket?.vendor ?? "No ticket yet"}
+                meta={firstTicket ? `${firstTicket.type} · ${memberLabel(state, firstTicket.member_handle)}` : "Waiting"}
+                detail={firstTicket?.qr_data ? "QR parsed" : `${state.tickets.length} tickets`}
+                active={activeFeature === "tickets"}
+                onClick={() => setActiveFeature("tickets")}
+              />
+              <ArtifactCard
+                icon={<ReceiptText size={15} />}
+                label="Split"
+                title={
+                  firstTransfer
+                    ? `${memberLabel(state, firstTransfer.from)} -> ${memberLabel(state, firstTransfer.to)}`
+                    : "No transfer"
+                }
+                meta={firstTransfer ? money(firstTransfer.amount, firstTransfer.currency) : "Settled"}
+                detail={`${state.expenses.length} expenses`}
+                active={activeFeature === "split"}
+                onClick={() => setActiveFeature("split")}
+              />
+              <ArtifactCard
+                icon={<Images size={15} />}
+                label="Photos"
+                title={firstPhoto?.place_name ?? "No photos yet"}
+                meta={`${state.photos.length} synced`}
+                detail={firstPhoto?.caption ?? "Used in recap"}
+                active={activeFeature === "photos"}
+                onClick={() => setActiveFeature("photos")}
+              />
+            </section>
+
+            <FeatureDetail state={state} activeFeature={activeFeature} />
+
+            <section className="memory-band" aria-label="Rated trip memories">
+              <div className="section-head">
+                <Sparkles size={15} />
+                <h2>Rated memory</h2>
+              </div>
+              <div className="memory-list">
+                {state.trip_memories.slice(0, 3).map((memory) => (
+                  <article key={memory._id}>
+                    <strong>{memory.title}</strong>
+                    <span>{memory.rating}/5 · {memory.location}</span>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
+
+        {activeView === "video" && (
+          <>
+            <section className="video-band">
+              <div>
+                <p className="eyebrow">Video studio</p>
+                <h2>{latestVideo ? latestVideo.title : "Travel video brief"}</h2>
+                <p>{latestVideo ? `${selectedCount} elements selected for a 60s render.` : "Create a brief first, then choose what goes into the video."}</p>
+              </div>
+              {latestVideo ? (
+                <div className="video-actions">
+                  <span className={`pill ${latestVideo.status}`}>{latestVideo.status.replace("_", " ")}</span>
+                  <button
+                    className="icon-button"
+                    onClick={() => renderVideoJob(latestVideo._id, videoSelection)}
+                    disabled={busy}
+                    aria-label="Render selected video"
+                    title="Render selected video"
+                  >
+                    <CirclePlay size={18} />
+                  </button>
+                  {latestVideo.status === "ready" && latestVideo.output_url && hasPlayableVideo && (
+                    <a
+                      className="icon-button"
+                      href={latestVideo.output_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Open playable video"
+                      title="Open playable video"
+                    >
+                      <ExternalLink size={18} />
+                    </a>
+                  )}
+                </div>
+              ) : (
                 <button
                   className="icon-button"
-                  onClick={() => renderVideoJob(latestVideo._id)}
+                  onClick={() =>
+                    sendText(
+                      "결정된 일정, 투표 이유, 대화 하이라이트를 바탕으로 60초 세로 여행영상 브리프를 만들어줘.",
+                    )
+                  }
                   disabled={busy}
-                  aria-label="Render playable video"
-                  title="Render playable video"
+                  aria-label="Create travel video brief"
+                  title="Create travel video brief"
                 >
                   <CirclePlay size={18} />
                 </button>
               )}
-              {latestVideo.status === "ready" && latestVideo.output_url && hasPlayableVideo && (
-                <a
-                  className="icon-button"
-                  href={latestVideo.output_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Open playable video"
-                  title="Open playable video"
-                >
-                  <ExternalLink size={18} />
-                </a>
-              )}
-            </div>
-          ) : (
-            <button
-              className="icon-button"
-              onClick={() =>
-                sendText(
-                  "결정된 일정, 투표 이유, 대화 하이라이트를 바탕으로 60초 세로 여행영상 브리프를 만들어줘.",
-                )
-              }
-              disabled={busy}
-              aria-label="Create travel video brief"
-              title="Create travel video brief"
-            >
-              <CirclePlay size={18} />
-            </button>
-          )}
-        </section>
+            </section>
 
-        {latestVideo && (
-          <section className="scene-strip" aria-label="Video scenes">
-            {latestVideo.scenes.map((scene) => (
-              <article key={scene.id}>
-                <Camera size={14} />
-                <strong>{scene.title}</strong>
-                <span>{scene.duration_seconds}s</span>
-              </article>
-            ))}
-          </section>
-        )}
-
-        <section className="artifact-rail" aria-label="Trippo artifacts">
-          <ArtifactCard
-            icon={<CalendarDays size={15} />}
-            label="Next plan"
-            title={nextEvent?.title ?? "No event yet"}
-            meta={nextEvent ? shortDateTime(nextEvent.starts_at) : "Waiting"}
-            detail={nextEvent?.location ?? `${state.events.length} events`}
-          />
-          <ArtifactCard
-            icon={<QrCode size={15} />}
-            label="Ticket QR"
-            title={firstTicket?.vendor ?? "No ticket yet"}
-            meta={firstTicket ? `${firstTicket.type} · ${memberLabel(state, firstTicket.member_handle)}` : "Waiting"}
-            detail={firstTicket?.qr_data ? "QR parsed" : `${state.tickets.length} tickets`}
-          />
-          <ArtifactCard
-            icon={<ReceiptText size={15} />}
-            label="Split"
-            title={
-              firstTransfer
-                ? `${memberLabel(state, firstTransfer.from)} -> ${memberLabel(state, firstTransfer.to)}`
-                : "No transfer"
-            }
-            meta={firstTransfer ? money(firstTransfer.amount, firstTransfer.currency) : "Settled"}
-            detail={`${state.expenses.length} expenses`}
-          />
-          <ArtifactCard
-            icon={<Images size={15} />}
-            label="Photos"
-            title={firstPhoto?.place_name ?? "No photos yet"}
-            meta={`${state.photos.length} synced`}
-            detail={firstPhoto?.caption ?? "Used in recap"}
-          />
-        </section>
-
-        {latestVideo?.output_url && hasPlayableVideo && (
-          <video className="recap-player" src={latestVideo.output_url} controls playsInline preload="metadata" />
-        )}
-
-        <section className="trace" aria-label="Agent activity">
-          <div className="section-head">
-            <Sparkles size={15} />
-            <h2>Agent activity</h2>
-          </div>
-          <div className="step-list">
-            {(activitySteps.length ? activitySteps : [{ name: "waiting", status: "completed" as const, summary: latestHistoryLabel(state) }]).map(
-              (step, index) => (
-                <article key={`${step.name}-${index}`} className={`step ${step.status}`}>
-                  <StepIcon status={busy && index === activitySteps.length - 1 ? "running" : step.status} />
-                  <div>
-                    <strong>{toolLabel(step.name)}</strong>
-                    <span>{step.summary}</span>
-                  </div>
-                </article>
-              ),
+            {latestVideo && (
+              <VideoStudio
+                state={state}
+                latestVideo={latestVideo}
+                selection={videoSelection}
+                onChange={setVideoSelection}
+              />
             )}
-          </div>
-        </section>
 
-        <section className="memory-band" aria-label="Rated trip memories">
-          <div className="section-head">
-            <Sparkles size={15} />
-            <h2>Rated memory</h2>
-          </div>
-          <div className="memory-list">
-            {state.trip_memories.slice(0, 3).map((memory) => (
-              <article key={memory._id}>
-                <strong>{memory.title}</strong>
-                <span>{memory.rating}/5 · {memory.location}</span>
-              </article>
-            ))}
-          </div>
-        </section>
+            {latestVideo?.output_url && hasPlayableVideo && (
+              <video className="recap-player" src={latestVideo.output_url} controls playsInline preload="metadata" />
+            )}
+
+            <section className="trace" aria-label="Agent activity">
+              <div className="section-head">
+                <Sparkles size={15} />
+                <h2>Agent activity</h2>
+              </div>
+              <div className="step-list">
+                {(activitySteps.length ? activitySteps : [{ name: "waiting", status: "completed" as const, summary: latestHistoryLabel(state) }]).map(
+                  (step, index) => (
+                    <article key={`${step.name}-${index}`} className={`step ${step.status}`}>
+                      <StepIcon status={busy && index === activitySteps.length - 1 ? "running" : step.status} />
+                      <div>
+                        <strong>{toolLabel(step.name)}</strong>
+                        <span>{step.summary}</span>
+                      </div>
+                    </article>
+                  ),
+                )}
+              </div>
+            </section>
+          </>
+        )}
 
         {openProposal && (
           <section className="proposal">
@@ -456,32 +527,35 @@ function App() {
           </section>
         )}
 
-        <section className="thread" aria-label="Trip chat">
-          {state.messages.slice(-10).map((message) => (
-            <article
-              key={message._id}
-              className={`message ${message.author === "agent" ? "agent" : message.author === author ? "me" : ""}`}
-            >
-              <span>{message.author === author ? memberName : message.author}</span>
-              <MessageBody text={message.body} />
-            </article>
-          ))}
-        </section>
+        {activeView === "chat" && (
+          <>
+            <section className="thread" aria-label="Trip chat">
+              {state.messages.slice(-12).map((message) => (
+                <article
+                  key={message._id}
+                  className={`message ${message.author === "agent" ? "agent" : message.author === author ? "me" : ""}`}
+                >
+                  <span>{message.author === author ? memberName : message.author}</span>
+                  <MessageBody text={message.body} />
+                </article>
+              ))}
+            </section>
+            <form className="composer inline-composer" onSubmit={handleSubmit}>
+              <input
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder="Ask the agent..."
+                disabled={busy}
+              />
+              <button disabled={busy || !draft.trim()} aria-label="Send" title="Send">
+                <Send size={18} />
+              </button>
+            </form>
+          </>
+        )}
 
         {error && <p className="error">{error}</p>}
       </div>
-
-      <form className="composer" onSubmit={handleSubmit}>
-        <input
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder="Ask the agent..."
-          disabled={busy}
-        />
-        <button disabled={busy || !draft.trim()} aria-label="Send" title="Send">
-          <Send size={18} />
-        </button>
-      </form>
     </main>
   );
 }
@@ -569,15 +643,19 @@ function ArtifactCard({
   title,
   meta,
   detail,
+  active,
+  onClick,
 }: {
   icon: ReactNode;
   label: string;
   title: string;
   meta: string;
   detail: string;
+  active: boolean;
+  onClick: () => void;
 }) {
   return (
-    <article className="artifact-card">
+    <button className={`artifact-card ${active ? "is-active" : ""}`} onClick={onClick}>
       <div>
         {icon}
         <span>{label}</span>
@@ -585,8 +663,202 @@ function ArtifactCard({
       <strong>{title}</strong>
       <small>{meta}</small>
       <p>{detail}</p>
-    </article>
+    </button>
   );
+}
+
+function FeatureDetail({ state, activeFeature }: { state: TripState; activeFeature: FeaturePanel }) {
+  if (activeFeature === "plans") {
+    return (
+      <section className="detail-panel">
+        <div className="section-head">
+          <CalendarDays size={15} />
+          <h2>Next plan</h2>
+        </div>
+        <div className="detail-list">
+          {state.events.map((event) => (
+            <article key={event._id}>
+              <strong>{event.title}</strong>
+              <span>{shortDateTime(event.starts_at)} · {event.location ?? "Location TBD"}</span>
+              <small>{event.status}</small>
+            </article>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (activeFeature === "tickets") {
+    return (
+      <section className="detail-panel">
+        <div className="section-head">
+          <QrCode size={15} />
+          <h2>Ticket QR</h2>
+        </div>
+        <div className="detail-list">
+          {state.tickets.map((ticket) => (
+            <article key={ticket._id}>
+              <strong>{ticket.vendor}</strong>
+              <span>{ticket.type} · {memberLabel(state, ticket.member_handle)} · {shortDateTime(ticket.starts_at)}</span>
+              <code>{ticket.qr_data ?? "QR pending"}</code>
+            </article>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (activeFeature === "split") {
+    return (
+      <section className="detail-panel">
+        <div className="section-head">
+          <ReceiptText size={15} />
+          <h2>Split</h2>
+        </div>
+        <div className="summary-row">
+          {state.settlement.totals_by_currency.map((total) => (
+            <strong key={total.currency}>{money(total.amount, total.currency)}</strong>
+          ))}
+        </div>
+        <div className="detail-list">
+          {state.settlement.transfers.map((transfer) => (
+            <article key={`${transfer.from}-${transfer.to}-${transfer.amount}`}>
+              <strong>{memberLabel(state, transfer.from)} pays {memberLabel(state, transfer.to)}</strong>
+              <span>{money(transfer.amount, transfer.currency)}</span>
+            </article>
+          ))}
+          {state.expenses.map((expense) => (
+            <article key={expense._id}>
+              <strong>{expense.description}</strong>
+              <span>{memberLabel(state, expense.payer)} paid {money(expense.amount, expense.currency)} · split {expense.split_among.length} ways</span>
+            </article>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="detail-panel">
+      <div className="section-head">
+        <Images size={15} />
+        <h2>Photos</h2>
+      </div>
+      <div className="photo-grid">
+        {state.photos.map((photo) => (
+          <article key={photo._id}>
+            <img src={photo.url} alt="" />
+            <strong>{photo.place_name ?? memberLabel(state, photo.member_handle)}</strong>
+            <span>{photo.caption ?? shortDateTime(photo.taken_at)}</span>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function VideoStudio({
+  state,
+  latestVideo,
+  selection,
+  onChange,
+}: {
+  state: TripState;
+  latestVideo: TripState["video_jobs"][number];
+  selection: VideoSelection;
+  onChange: (selection: VideoSelection) => void;
+}) {
+  return (
+    <section className="studio-panel">
+      <div className="section-head">
+        <SlidersHorizontal size={15} />
+        <h2>60s render mix</h2>
+      </div>
+      <ToggleGroup
+        title="Scenes"
+        items={latestVideo.scenes.map((scene) => ({
+          id: scene.id,
+          title: scene.title,
+          meta: `${scene.duration_seconds}s`,
+        }))}
+        selected={selection.scenes}
+        onToggle={(id) => onChange({ ...selection, scenes: toggleId(selection.scenes, id) })}
+      />
+      <ToggleGroup
+        title="Photos"
+        items={state.photos.slice(0, 8).map((photo) => ({
+          id: photo._id,
+          title: photo.place_name ?? photo.caption ?? "Trip photo",
+          meta: memberLabel(state, photo.member_handle),
+        }))}
+        selected={selection.photos}
+        onToggle={(id) => onChange({ ...selection, photos: toggleId(selection.photos, id) })}
+      />
+      <ToggleGroup
+        title="Trip facts"
+        items={[
+          ...state.events.map((event) => ({
+            id: event._id,
+            title: event.title,
+            meta: "plan",
+          })),
+          ...state.tickets.map((ticket) => ({
+            id: ticket._id,
+            title: ticket.vendor,
+            meta: "ticket",
+          })),
+        ]}
+        selected={[...selection.events, ...selection.tickets]}
+        onToggle={(id) => {
+          const isTicket = state.tickets.some((ticket) => ticket._id === id);
+          onChange(
+            isTicket
+              ? { ...selection, tickets: toggleId(selection.tickets, id) }
+              : { ...selection, events: toggleId(selection.events, id) },
+          );
+        }}
+      />
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={selection.settlement}
+          onChange={(event) => onChange({ ...selection, settlement: event.target.checked })}
+        />
+        <span>Include settlement beat</span>
+      </label>
+    </section>
+  );
+}
+
+function ToggleGroup({
+  title,
+  items,
+  selected,
+  onToggle,
+}: {
+  title: string;
+  items: Array<{ id: string; title: string; meta: string }>;
+  selected: string[];
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div className="toggle-group">
+      <h3>{title}</h3>
+      <div>
+        {items.map((item) => (
+          <label key={item.id} className="check-row">
+            <input type="checkbox" checked={selected.includes(item.id)} onChange={() => onToggle(item.id)} />
+            <span>{item.title}</span>
+            <small>{item.meta}</small>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function toggleId(values: string[], id: string): string[] {
+  return values.includes(id) ? values.filter((value) => value !== id) : [...values, id];
 }
 
 function shortDateTime(value: string): string {

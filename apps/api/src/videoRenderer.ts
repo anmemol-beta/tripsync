@@ -6,9 +6,12 @@ import { promisify } from "node:util";
 import type { Db } from "mongodb";
 import {
   COLLECTIONS,
+  type EventDoc,
+  type ExpenseDoc,
   type HistoryDoc,
   type MemberDoc,
   type MessageDoc,
+  type TicketDoc,
   type TripDoc,
   type TripMemoryDoc,
   type VideoJobDoc,
@@ -27,6 +30,7 @@ type VideoJobArtifactDoc = {
   html?: string;
   file_path?: string;
   byte_length?: number;
+  render_selection?: RenderOptions["include"];
   created_at: string;
   updated_at: string;
 };
@@ -56,6 +60,13 @@ type RenderMode = "mp4" | "html";
 type RenderOptions = {
   publicBaseUrl: string;
   mode?: RenderMode;
+  include?: {
+    scenes?: string[];
+    photos?: string[];
+    events?: string[];
+    tickets?: string[];
+    settlement?: boolean;
+  };
 };
 
 type RenderContext = {
@@ -66,6 +77,12 @@ type RenderContext = {
   history: HistoryDoc[];
   memories: Omit<TripMemoryDoc, "embedding">[];
   photos: PhotoLikeDoc[];
+  events: EventDoc[];
+  tickets: TicketDoc[];
+  expenses: ExpenseDoc[];
+  include?: RenderOptions["include"];
+  selectedSceneIds: Set<string> | null;
+  selectedPhotoIds: Set<string> | null;
   previewUrl: string;
   videoUrl: string;
 };
@@ -110,7 +127,7 @@ export async function renderVideoJob(
   const job = await jobs.findOne({ _id: jobId });
   if (!job) throw new RenderHttpError(404, "video_job_not_found");
 
-  if (job.status === "ready" && job.output_url?.endsWith("/video.webm")) {
+  if (!options.include && job.status === "ready" && job.output_url?.endsWith("/video.webm")) {
     return { video_job_id: job._id, status: job.status, output_url: job.output_url };
   }
   if (job.status === "rendering") {
@@ -133,7 +150,7 @@ export async function renderVideoJob(
     if (!freshJob) throw new Error("video job disappeared during render");
 
     const mode = options.mode ?? "mp4";
-    const context = await loadRenderContext(db, freshJob, options.publicBaseUrl, mode);
+    const context = await loadRenderContext(db, freshJob, options.publicBaseUrl, mode, options.include);
     const html = buildRecapHtml(context);
     const artifact: VideoJobArtifactDoc = {
       _id: `artifact_${jobId}`,
@@ -142,6 +159,7 @@ export async function renderVideoJob(
       kind: "html_preview",
       content_type: "text/html",
       html,
+      render_selection: options.include,
       created_at: now,
       updated_at: new Date().toISOString(),
     };
@@ -233,11 +251,12 @@ async function loadRenderContext(
   job: VideoJobDoc,
   publicBaseUrl: string,
   mode: RenderMode,
+  include: RenderOptions["include"] | undefined,
 ): Promise<RenderContext> {
   const trip = await db.collection<TripDoc>(COLLECTIONS.trips).findOne({ _id: job.trip_id });
   if (!trip) throw new Error(`trip not found: ${job.trip_id}`);
 
-  const [members, messages, history, memories, photos] = await Promise.all([
+  const [members, messages, history, memories, photos, events, tickets, expenses] = await Promise.all([
     db
       .collection<MemberDoc>(COLLECTIONS.members)
       .find({ trip_id: job.trip_id })
@@ -268,6 +287,21 @@ async function loadRenderContext(
       .limit(12)
       .toArray()
       .catch(() => []),
+    db
+      .collection<EventDoc>(COLLECTIONS.events)
+      .find({ trip_id: job.trip_id })
+      .sort({ starts_at: 1 })
+      .toArray(),
+    db
+      .collection<TicketDoc>(COLLECTIONS.tickets)
+      .find({ trip_id: job.trip_id })
+      .sort({ starts_at: 1 })
+      .toArray(),
+    db
+      .collection<ExpenseDoc>(COLLECTIONS.expenses)
+      .find({ trip_id: job.trip_id, status: "parsed" })
+      .sort({ created_at: -1 })
+      .toArray(),
   ]);
 
   const fallbackPhotos = FALLBACK_PHOTOS.map((photo, index) => ({
@@ -276,6 +310,13 @@ async function loadRenderContext(
     trip_id: job.trip_id,
   }));
 
+  const selectedPhotoIds = include?.photos?.length ? new Set(include.photos) : null;
+  const selectedSceneIds = include?.scenes?.length ? new Set(include.scenes) : null;
+  const sourcePhotos = photos.length ? photos : fallbackPhotos;
+  const selectedPhotos = selectedPhotoIds
+    ? sourcePhotos.filter((photo) => selectedPhotoIds.has(photo._id ?? ""))
+    : sourcePhotos;
+
   return {
     job,
     trip,
@@ -283,7 +324,17 @@ async function loadRenderContext(
     messages,
     history,
     memories,
-    photos: photos.length ? photos : fallbackPhotos,
+    photos: selectedPhotos.length ? selectedPhotos : sourcePhotos,
+    events: include?.events?.length
+      ? events.filter((event) => include.events!.includes(event._id))
+      : events,
+    tickets: include?.tickets?.length
+      ? tickets.filter((ticket) => include.tickets!.includes(ticket._id))
+      : tickets,
+    expenses: include?.settlement === false ? [] : expenses,
+    include,
+    selectedSceneIds,
+    selectedPhotoIds,
     previewUrl: `${trimSlash(publicBaseUrl)}/video-jobs/${encodeURIComponent(job._id)}/preview`,
     videoUrl: `${trimSlash(publicBaseUrl)}/video-jobs/${encodeURIComponent(job._id)}/${mode === "mp4" ? "video.webm" : "preview"}`,
   };
@@ -306,6 +357,7 @@ async function renderWebmArtifact(db: Db, context: RenderContext, startedAt: str
       content_type: "video/webm",
       file_path: outputPath,
       byte_length: fileStat.size,
+      render_selection: context.include,
       created_at: startedAt,
       updated_at: new Date().toISOString(),
     };
@@ -332,11 +384,35 @@ async function downloadRenderPhotos(photos: PhotoLikeDoc[], tempDir: string): Pr
       // Broken remote assets are skipped; the renderer only needs one usable photo.
     }
   }
-  if (!inputPaths.length) throw new Error("no downloadable photos for mp4 render");
+  if (!inputPaths.length) {
+    const fallbackPath = path.join(tempDir, "fallback.jpg");
+    await execFileAsync(
+      "ffmpeg",
+      [
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=0x243b37:s=1080x1920",
+        "-frames:v",
+        "1",
+        fallbackPath,
+      ],
+      { timeout: 30_000, maxBuffer: 1024 * 1024 },
+    );
+    inputPaths.push(fallbackPath);
+  }
   return inputPaths;
 }
 
-async function runFfmpeg(inputPaths: string[], context: RenderContext, outputPath: string): Promise<void> {
+async function runFfmpeg(
+  inputPaths: string[],
+  context: RenderContext,
+  outputPath: string,
+): Promise<void> {
   const fps = 24;
   const duration = Math.min(context.job.duration_seconds, 60);
   const segmentDuration = Math.max(3, duration / inputPaths.length);
@@ -354,7 +430,7 @@ async function runFfmpeg(inputPaths: string[], context: RenderContext, outputPat
   const audioInputIndex = inputPaths.length;
   const filter = [
     ...imageFilters,
-    `${concatInputs}concat=n=${inputPaths.length}:v=1:a=0,trim=duration=${duration},format=yuv420p[v]`,
+    `${concatInputs}concat=n=${inputPaths.length}:v=1:a=0,trim=duration=${duration},format=yuv420p,drawbox=x=44:y=1510:w=992:h=24:color=black@0.38:t=fill[v]`,
     `[${audioInputIndex}:a]volume=0.08[a]`,
   ].join(";");
 
@@ -386,11 +462,13 @@ async function runFfmpeg(inputPaths: string[], context: RenderContext, outputPat
 
 function buildRecapHtml(context: RenderContext): string {
   const photoTiles = context.photos.slice(0, 6);
-  const sceneCards = context.job.scenes.slice(0, 5);
+  const includedScenes = getIncludedScenes(context);
+  const sceneCards = includedScenes.slice(0, 5);
   const messageHighlights = context.messages.slice(-4);
   const memberDots = context.members.slice(0, 4);
   const memory = context.memories[0];
-  const sceneTimeline = buildSceneTimeline(context.job).slice(0, sceneCards.length);
+  const selectedFacts = buildSelectedFacts(context);
+  const sceneTimeline = buildSceneTimeline(context.job, context.selectedSceneIds).slice(0, sceneCards.length);
   const sceneTimelineJson = serializeScriptJson(sceneTimeline);
 
   return `<!doctype html>
@@ -669,8 +747,8 @@ function buildRecapHtml(context: RenderContext): string {
         ${escapeText(messageHighlights.at(-1)?.body ?? context.history[0]?.event_type ?? "Travel decisions saved in MongoDB.")}
       </article>
       <article class="stat">
-        ${context.job.duration_seconds}s vertical fallback<br />
-        ${context.photos.length} photos, ${context.messages.length} messages${memory ? `<br />Top memory: ${escapeText(memory.title)}` : ""}
+        ${context.job.duration_seconds}s vertical render<br />
+        ${context.photos.length} photos, ${context.events.length} plans, ${context.tickets.length} tickets${context.expenses.length ? `<br />Settlement included` : ""}${memory ? `<br />Top memory: ${escapeText(memory.title)}` : ""}<br />${escapeText(selectedFacts)}
       </article>
     </section>
   </main>
@@ -794,8 +872,26 @@ function buildRecapHtml(context: RenderContext): string {
 </html>`;
 }
 
-function buildSceneTimeline(job: VideoJobDoc): SceneTiming[] {
-  const scenes = job.scenes.length ? job.scenes : [{
+function buildSelectedFacts(context: RenderContext): string {
+  const facts = [
+    context.events[0]?.title,
+    context.tickets[0]?.vendor,
+    context.expenses[0]?.description,
+  ].filter(Boolean);
+  return facts.length ? `Mix: ${facts.join(" · ")}` : "Mix: photos and scenes";
+}
+
+function getIncludedScenes(context: RenderContext): VideoJobDoc["scenes"] {
+  if (!context.selectedSceneIds) return context.job.scenes;
+  const scenes = context.job.scenes.filter((scene) => context.selectedSceneIds!.has(scene.id));
+  return scenes.length ? scenes : context.job.scenes;
+}
+
+function buildSceneTimeline(job: VideoJobDoc, selectedSceneIds: Set<string> | null = null): SceneTiming[] {
+  const sourceScenes = selectedSceneIds
+    ? job.scenes.filter((scene) => selectedSceneIds.has(scene.id))
+    : job.scenes;
+  const scenes = sourceScenes.length ? sourceScenes : [{
     id: "scene_1",
     title: job.title,
     source: "agent_memory" as const,
