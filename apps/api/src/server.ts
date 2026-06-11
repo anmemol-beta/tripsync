@@ -58,7 +58,7 @@ function createGeminiClient(): GeminiClient {
     return new MockGeminiClient([
       {
         kind: "text",
-        text: "Mock mode입니다. 실제 개발 검증은 AGENT_PROVIDER=gemini와 GEMINI_API_KEY로 실행하세요.",
+        text: "Mock mode is enabled. Use AGENT_PROVIDER=gemini with GEMINI_API_KEY for live validation.",
       },
     ]);
   }

@@ -114,7 +114,7 @@ export class GoogleGeminiClient implements GeminiClient {
       .flatMap((part) => ("text" in part ? [part.text] : []))
       .join("\n")
       .trim();
-    return { kind: "text", text: text || "처리했어요." };
+    return { kind: "text", text: text || "Done." };
   }
 }
 
@@ -278,7 +278,7 @@ function parseGeminiResponse(json: GeminiResponse): GenerateOutput {
     .flatMap((part) => ("text" in part ? [part.text] : []))
     .join("\n")
     .trim();
-  return { kind: "text", text: text || "처리했어요." };
+  return { kind: "text", text: text || "Done." };
 }
 
 function toolDescription(name: string): string {

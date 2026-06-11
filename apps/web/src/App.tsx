@@ -455,7 +455,7 @@ function App() {
                   className="icon-button"
                   onClick={() =>
                     sendText(
-                      "결정된 일정, 투표 이유, 대화 하이라이트를 바탕으로 60초 세로 여행영상 브리프를 만들어줘.",
+                      "Create a 60-second vertical travel video brief from the confirmed itinerary, vote reasons, and chat highlights.",
                     )
                   }
                   disabled={busy}
